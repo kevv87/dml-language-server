@@ -1,0 +1,68 @@
+name: Build Binaries
+
+on:
+  workflow_call:
+    inputs:
+      binary_name:
+        description: "Expected name of binary"
+        required: false
+        type: string
+        default: "dls"
+      output_binary_name:
+        description: "Name of uploaded binary artifact"
+        type: string
+        default: "dls"
+      log-dir:
+        description: "Folder to put cargo logs in"
+        required: false
+        type: string
+      os:
+        description: "Machine to run on"
+        required: true
+        type: string
+env:
+    CARGO_TERM_COLOR: always
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: versions
+        run: |
+          rustup --version
+          cargo --version
+          rustc --version
+      - name: Prepare log dir
+        run: mkdir -p ${{ inputs.log-dir }}
+      - name: Build
+        shell: bash
+        run: cargo build --release --verbose 2>&1 | tee -a ${{ inputs.log-dir }}/build.log
+      - name: Test
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --verbose  2>&1 | tee -a ${{ inputs.log-dir }}/test.log
+      - name: Clippy
+        shell: bash
+        if: ${{ success() || failure() }}
+        run: |
+          set -o pipefail
+          rustup component add clippy
+          cargo clippy --version
+          cargo clippy --all-targets -- --deny warnings 2>&1 | tee -a ${{ inputs.log-dir }}/clippy.log
+      - name: Upload logs
+        if: ${{ success() || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-logs
+          overwrite: true
+          path: ${{ inputs.log-dir }}
+          if-no-files-found: error
+      - name: Upload binary
+        if: ${{ success() || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.output_binary_name }}
+          overwrite: true
+          path: target/release/${{ inputs.binary_name }}
+          if-no-files-found: error

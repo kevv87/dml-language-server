@@ -1,0 +1,42 @@
+name: Archive Binary
+
+on:
+  push:
+      branches: [ "main" ]
+  pull_request:
+      branches: [ "main" ]
+  schedule:
+      - cron: "0 0 * * *"
+jobs:
+  build-package:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        include:
+          - os: ubuntu-latest
+            binary: dls
+          - os: windows-latest
+            binary: dls.exe
+    uses: ./.github/workflows/binaries.yml
+    with:
+      binary_name: ${{ matrix.binary }}
+      output_binary_name: dml-server-${{ matrix.os }}
+      log-dir: ${{ matrix.binary }}-logs
+      os: ${{ matrix.os }}
+  check-package:
+    uses: ./.github/workflows/scans.yml
+    with:
+      os: ubuntu-latest
+      log-dir: checking-logs
+  merge-package:
+    runs-on:
+      - ubuntu-latest
+    needs: build-package
+    steps:
+      - name: Merge Artifacts
+        uses: actions/upload-artifact/merge@v4
+        with:
+          name: dml-server
+          pattern: dml-server-*
