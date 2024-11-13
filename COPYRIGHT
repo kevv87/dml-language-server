@@ -1,0 +1,6 @@
+Source code is a modified version of the code available at
+https://github.com/rust-lang/rls, which is licensed under Apache 2.0
+and MIT.
+
+This code is similarly dual-licensed under Apache 2.0 and MIT,
+see the corresponding license files for more information.

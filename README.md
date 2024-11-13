@@ -1,12 +1,29 @@
-# The DML language server
+<!--
+  © 2024 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0 and MIT
+-->
+# DML Language Server (DLS)
 
-This repository is a place holder repository for a [Device Modeling Languge](https://github.com/intel/device-modeling-language) [Language Server](https://langserver.org/). As that is a mouthful, it'll most likely be called DLS at some point.
+The DLS provides a server that runs in the background, providing IDEs,
+editors, and other tools with information about DML device and common code.
+It currently only supports basic syntax error reporting.
+Support for 'goto definiton', sumbol search, and other common IDE
+operations is planned.
 
-The language server will be implemented in Rust and our intent is to provide pre-built binaries for Linux and Windows. Any editor that supports the [LSP protocol](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) shall be able to use it, but we are also implementing a [VS-code Simics Modelling Extension](https://github.com/intel/vscode-simics) (also still in intial development) in which it is to be integrated.
+Do note that the DLS only supports DML 1.4 code, and there are no plans to
+extend this functionality to support DML 1.2 code. It can only perform
+analysis on files declared as using DML 1.4 version.
 
-The current expectation is that we'll publish a work-in-progress version around end of 24Q3. 
+## Building
 
-Please stay tuned!
+Simply run "cargo build --release" in the checkout directory.
 
-/The DLS developers.
+## Running
 
+The DLS is built to work with the Language Server Protocol, and as such it in
+theory supports many IDEs and editors. However currently the only implemented
+language client is the Simics Modeling Extension for Visual Studio Code, which
+not yet publicly available.
+
+See [clients.md](clients.md) for information about how to implement
+your own language client compatible with the DML language server.
