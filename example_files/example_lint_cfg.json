@@ -1,0 +1,10 @@
+{
+    "direct_only": true,
+    "sp_brace": {},
+    "sp_punct": {},
+    "nsp_funpar": {},
+    "nsp_inparen": {},
+    "nsp_unary": {},
+    "nsp_trailing": {},
+    "long_lines": { "max_length": 80 }
+}

@@ -1,0 +1,51 @@
+name: Cargo Check
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: "Machine to run on"
+        required: true
+        type: string
+      log-dir:
+        description: "Folder to put cargo logs in"
+        required: false
+        type: string
+
+env:
+    CARGO_TERM_COLOR: always
+jobs:
+  audit:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: versions
+        run: |
+          rustup --version
+          cargo --version
+          rustc --version
+      - name: Prepare log dir
+        run: mkdir -p ${{ inputs.log-dir }}
+      - name: Audit Deny
+        shell: bash
+        if: ${{ success() || failure() }}
+        run: |
+          cargo install cargo-deny
+          cargo deny --version
+          set -o pipefail
+          cargo deny check  2>&1 | tee -a ${{ inputs.log-dir }}/deny-log
+      - name: Audit Outdated
+        shell: bash
+        if: ${{ success() || failure() }}
+        run: |
+          cargo install cargo-outdated
+          cargo outdated --version
+          set -o pipefail
+          cargo outdated  --exit-code 1 2>&1 | tee -a ${{ inputs.log-dir }}/outdated-log
+      - name: Upload logs
+        if: ${{ success() || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-scan-logs
+          overwrite: true
+          path: ${{ inputs.log-dir }}

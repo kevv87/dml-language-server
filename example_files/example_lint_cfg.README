@@ -1,0 +1,22 @@
+// This is an example and explanation of a configuration file for
+// the DLS linting module
+// NOTE: This file CANNOT be used as-is, since it contains in-line comments.
+// If you simply want some good default parameters for your linting, it is
+// better to _not specify a file at all_ and instead use the defaults provided
+// in the server
+// The 'example_lint_cfg.json' file contains a configuration corresponding to
+// these defaults, which is a suitable place to start
+// your modifications
+
+{
+    // if set to 'false', will lint indirectly imported files as well
+    "direct_only": true,
+    // linting rules with no arguments are enabled by assigning an empty struct
+    "sp_brace": {},
+    // linting rules with arguments are straightforward
+    "long_lines": { "max_length": 80 },
+    // to disable a rule, either do not set it
+    // "nsp_unary": {}
+    // or assign it to null
+    "nsp_unary": null
+}

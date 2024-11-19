@@ -1,0 +1,53 @@
+[package]
+name = "dls"
+version = "0.9.5"
+edition = "2018"
+authors = []
+description = "Simics DML language server"
+license = "Apache-2.0/MIT"
+categories = ["development-tools"]
+
+[profile.release]
+debug = 1
+
+[lib]
+name = "dls"
+doctest = false
+path = "src/lib.rs"
+
+[[bin]]
+name = "dls"
+test = false
+path = "src/main.rs"
+
+[[bin]]
+name = "dfa"
+test = false
+path = "src/dfa/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.2", features = ["cargo", "derive"] }
+crossbeam = "0.8"
+crossbeam-deque = "0.8.1"
+crossbeam-utils = "0.8.7"
+env_logger = "0.11"
+itertools = "0.13"
+jsonrpc = "0.18"
+lsp-types = { version = "0.97" }
+lazy_static = "1.4"
+log = "0.4"
+logos = "0.14"
+rayon = "1"
+regex = "1.5.5"
+serde = "1.0"
+serde_ignored = "0.1"
+serde_json = "1.0"
+slotmap = "1.0"
+store-interval-tree = "0.4"
+strum = { version = "0.26", features = ["derive"] }
+subprocess = "0.2"
+thiserror = "2.0"
+utf8-read = "0.4"
+walkdir = "2"
+heck = "0.5"
