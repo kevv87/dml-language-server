@@ -1056,6 +1056,9 @@ impl TreeElement for SwitchContent {
                      &self.cases,
                      &self.rbrace)
     }
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+        rules.sp_brace.check(acc, SpBracesArgs::from_switch(self));
+    }
 }
 
 impl Parse<StatementContent> for SwitchContent {

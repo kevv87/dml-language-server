@@ -7,12 +7,16 @@ use crate::lint::rules::Rule;
 use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{TreeElement, ZeroRange};
 use crate::analysis::parsing::expression::{FunctionCallContent, IndexContent,
+                                           ParenExpressionContent,
                                            PostUnaryExpressionContent,
                                            UnaryExpressionContent};
 use crate::analysis::parsing::statement::{CompoundContent,
                                           ExpressionStmtContent,
-                                          IfContent, VariableDeclContent};
-use crate::analysis::parsing::structure::{MethodContent,
+                                          IfContent, VariableDeclContent,
+                                          SwitchContent};
+use crate::analysis::parsing::structure::{CompositeObjectContent,
+                                          Instantiation,
+                                          MethodContent,
                                           ObjectStatementsContent};
 
 use crate::span::{ZeroIndexed, Range};
@@ -90,6 +94,17 @@ impl SpBracesArgs {
         Some(SpBracesArgs {
             body_start: node.fields.first().unwrap().range(),
             body_end: node.fields.last().unwrap().range(),
+            lbrace: node.lbrace.range(),
+            rbrace: node.rbrace.range(),
+        })
+    }
+    pub fn from_switch(node: &SwitchContent) -> Option<SpBracesArgs> {
+        if node.cases.is_empty() {
+            return None;
+        }
+        Some(SpBracesArgs {
+            body_start: node.cases.first().unwrap().range(),
+            body_end: node.cases.last().unwrap().range(),
             lbrace: node.lbrace.range(),
             rbrace: node.rbrace.range(),
         })
@@ -227,6 +242,34 @@ impl SpPunctArgs {
             after_range_list,
         })
     }
+    pub fn from_instantiation(node: &Instantiation) -> Option<SpPunctArgs> {
+        if let Instantiation::Many(_, templates_list, _) = node {
+            let mut before_range_list = vec![];
+            let mut punct_range_list = vec![];
+            let mut after_range_list = vec![];
+            let mut iterator = templates_list.iter().peekable();
+
+            while let Some((template_name, comma)) = iterator.next() {
+                if let Some(comma_token) = comma {
+                    before_range_list.push(template_name.range());
+                    punct_range_list.push(comma_token.range());
+                    if let Some((next_template_name, _)) = iterator.peek() {
+                        after_range_list.push(Some(next_template_name.range()));
+                    } else {
+                        after_range_list.push(None);
+                    }
+                }
+            }
+
+            Some(SpPunctArgs {
+                before_range_list,
+                punct_range_list,
+                after_range_list,
+            })
+        } else {
+            None
+        }
+    }
 }
 
 impl SpPunctRule {
@@ -358,6 +401,41 @@ impl NspInparenArgs {
             opening: node.lparen.range(),
             content_start: content_start_range,
             content_end: content_end_range,
+            closing: node.rparen.range(),
+        })
+    }
+    pub fn from_composite_obj_content(node: &CompositeObjectContent)
+                                            -> Option<NspInparenArgs> {
+        if node.dimensions.is_empty() {
+            return None;
+        }
+        let dimension = node.dimensions.first().unwrap();
+        Some(NspInparenArgs {
+            opening: dimension.0.range(),
+            content_start: dimension.1.range(),
+            content_end: dimension.3.range(),
+            closing: dimension.4.range(),
+        })
+    }
+    pub fn from_instantiation(node: &Instantiation)
+                              -> Option<NspInparenArgs> {
+        if let Instantiation::Many(lparen, templates, rparen) = node {
+            Some(NspInparenArgs {
+                opening: lparen.range(),
+                content_start: templates.range(),
+                content_end: templates.range(),
+                closing: rparen.range(),
+            })
+        } else {
+            None
+        }
+    }
+    pub fn from_paren_expression(node: &ParenExpressionContent)
+                              -> Option<NspInparenArgs> {
+        Some(NspInparenArgs {
+            opening: node.lparen.range(),
+            content_start: node.expr.range(),
+            content_end: node.expr.range(),
             closing: node.rparen.range(),
         })
     }
@@ -540,12 +618,14 @@ method this_is_some_method() {
 ";
 
     //  SP.braces around braces ({ and })
-    pub static SP_BRACES: &str = "
-method this_is_some_method() {return 0;}
+    pub static SP_BRACES_COMPOUND_AND_COMPOSITE: &str = "
+method this_is_some_method(){return 0;}
 
 method this_is_empty_method() { }
 
-bank pcie_config {register command {field mem {
+template some_template {param some_param default 1;}
+
+bank pcie_config {register command{field mem {
             method pcie_write(uint64 value) {
                 if (value != 0) {value = value + 1;
                 }
@@ -554,18 +634,18 @@ bank pcie_config {register command {field mem {
 }}}
 ";
     #[test]
-    fn style_check_sp_braces() {
+    fn style_check_sp_braces_compound_and_composite() {
         let mut cfg = LintCfg::default();
         let mut rules = instantiate_rules(&cfg);
-        assert_snippet(SP_BRACES, 8, &rules);
+        assert_snippet(SP_BRACES_COMPOUND_AND_COMPOSITE, 12, &rules);
         // Test rule disable
         cfg.sp_brace = None;
         rules = instantiate_rules(&cfg);
-        assert_snippet(SP_BRACES, 0, &rules);
+        assert_snippet(SP_BRACES_COMPOUND_AND_COMPOSITE, 0, &rules);
 
     }
 
-    pub static SP_BRACES_02: &str = "
+    pub static SP_BRACES_STRUCTS_AND_LAYOUTS: &str = "
 typedef struct {uint16 idx;} hqm_cq_list_release_ctx_t;
 
 typedef layout \"little-endian\" {bitfields 8 {uint2 rsvd @ [7:6];
@@ -577,14 +657,49 @@ typedef layout \"little-endian\" {bitfields 8 {uint2 rsvd @ [7:6];
         uint1 cq_token         @ [0:0];} byte;} prod_qe_cmd_t;
 ";
     #[test]
-    fn style_check_sp_braces_02() {
+    fn style_check_sp_braces_structs_and_layouts() {
         let mut cfg = LintCfg::default();
         let mut rules = instantiate_rules(&cfg);
-        assert_snippet(SP_BRACES_02, 6, &rules);
+        assert_snippet(SP_BRACES_STRUCTS_AND_LAYOUTS, 6, &rules);
         // Test rule disable
         cfg.sp_brace = None;
         rules = instantiate_rules(&cfg);
-        assert_snippet(SP_BRACES_02, 0, &rules);
+        assert_snippet(SP_BRACES_STRUCTS_AND_LAYOUTS, 0, &rules);
+
+    }
+
+    pub static SP_BRACES_SWITCHES: &str = "
+method test_switch(int some_var) {switch (some_var){
+        case 1:
+            print(1);
+            break;
+        #if (ENABLE_EXTRA_CASE){
+        case extra:
+            print(\"extra\");
+            break;
+        }#else{
+        case 2:
+            print(2);
+            break;
+        }case COMPOUND:{
+            print(1);
+            print(2);
+            break;
+        }
+        default:
+            print(0);
+            break;}
+}
+";
+    #[test]
+    fn style_check_sp_braces_switches() {
+        let mut cfg = LintCfg::default();
+        let mut rules = instantiate_rules(&cfg);
+        assert_snippet(SP_BRACES_SWITCHES, 6, &rules);
+        // Test rule disable
+        cfg.sp_brace = None;
+        rules = instantiate_rules(&cfg);
+        assert_snippet(SP_BRACES_SWITCHES, 0, &rules);
 
     }
 
@@ -607,6 +722,8 @@ method this_is_some_method(bool flag) {
 
     //  SP.punct after but not before colon, semicolon and comma
     pub static SP_PUNCT: &str = "
+register some_reg is (some_template,another_template ,final_template);
+
 method this_is_some_method(bool flag ,int8 var) {
     local int this_some_integer = 0x666 ;
     if(this_some_integer == 0x666)
@@ -618,7 +735,7 @@ method this_is_some_method(bool flag ,int8 var) {
     fn style_check_sp_punct_rule() {
         let mut cfg = LintCfg::default();
         let mut rules = instantiate_rules(&cfg);
-        assert_snippet(SP_PUNCT, 9, &rules);
+        assert_snippet(SP_PUNCT, 12, &rules);
         // Test rule disable
         cfg.sp_punct = None;
         rules = instantiate_rules(&cfg);
@@ -678,6 +795,27 @@ method this_is_some_method( conf_object_t *dummy_obj ) {
         cfg.nsp_inparen = None;
         rules = instantiate_rules(&cfg);
         assert_snippet(NSP_INPAREN, 0, &rules);
+    }
+
+    pub static NSP_INPAREN_02: &str = "
+bank some_bank {
+    group some_group[ i < ( GROUP_COUNT ) ] {
+        register some_reg is ( some_template, another_template ) {
+            param desc = \"Register description\";
+        }
+    }
+}
+";
+    #[test]
+    fn style_check_nsp_inparen_02() {
+        let mut cfg = LintCfg::default();
+        let mut rules = instantiate_rules(&cfg);
+        assert_snippet(NSP_INPAREN_02, 6, &rules);
+        // Test rule disable
+        cfg.nsp_inparen = None;
+        rules = instantiate_rules(&cfg);
+        assert_snippet(NSP_INPAREN_02, 0, &rules);
+
     }
 
     //  NSP.unary between a unary operator and its operand
