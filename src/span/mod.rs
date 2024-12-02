@@ -277,11 +277,12 @@ impl <I: Indexed> Ord for Range<I> {
     fn cmp(&self, other: &Range<I>) -> Ordering {
         if self == other {
             Ordering::Equal
-        } else if self.start() < other.start() || self.end() < other.end() {
-            Ordering::Less
-        } else {
-            Ordering::Greater
-        }
+        } else if self.start() < other.start()
+            || (self.start() == other.start() && self.end() < other.end()) {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
     }
 }
 
@@ -690,7 +691,7 @@ mod test {
         assert!(range < range_2);
         let range_3 = Range::<ZeroIndexed>::from_u32(1, 1, 0, 2);
         assert!(range < range_3);
-        assert!(range_2 < range_3);
+        assert!(range_2 > range_3);
     }
 
     #[test]
@@ -733,5 +734,17 @@ mod test {
         assert!(range2.contains(range1) == ContainsResult::Partial);
         assert!(range3.contains(range2) == ContainsResult::Contains);
         assert!(range2.contains(range3) == ContainsResult::Contained);
+    }
+
+    #[test]
+    fn test_range_sort() {
+        let range0 = Range::<ZeroIndexed>::from_u32(0, 4, 0, 0);
+        let range1 = Range::<ZeroIndexed>::from_u32(1, 3, 0, 0);
+        let range2 = Range::<ZeroIndexed>::from_u32(2, 2, 0, 0);
+        let range3 = Range::<ZeroIndexed>::from_u32(1, 5, 0, 0);
+        let mut vec = vec![range0, range1, range2, range3];
+        vec.sort();
+        assert_eq!(vec,
+                   vec![range0, range1, range3, range2])
     }
 }
