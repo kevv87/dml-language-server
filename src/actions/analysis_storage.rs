@@ -230,7 +230,7 @@ impl AnalysisStorage {
     pub fn get_file_contexts(&self, path: &CanonPath)
                              -> HashSet<Option<CanonPath>> {
         if let Some(deps) = self.dependencies.get(path) {
-            return deps.keys().cloned().collect()
+            deps.keys().cloned().collect()
         } else {
             vec![None].into_iter().collect()
         }

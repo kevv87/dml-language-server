@@ -49,7 +49,7 @@ impl SpBracesArgs {
             if declarations.is_empty() {
                 return None;
             }
-            return Some(SpBracesArgs {
+            Some(SpBracesArgs {
                 body_start: declarations.first().unwrap().range(),
                 body_end: declarations.last().unwrap().range(),
                 lbrace: l_brace.range(),

@@ -142,7 +142,7 @@ impl std::fmt::Display for Reference {
 }
 
 impl Reference {
-    pub fn as_variable_ref<'t>(&'t self) -> Option<&VariableReference> {
+    pub fn as_variable_ref(&self) -> Option<&VariableReference> {
         match self {
             Reference::Variable(var) => Some(var),
             _ => None,
