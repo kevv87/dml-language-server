@@ -60,7 +60,6 @@ pub mod message;
 const NOT_INITIALIZED_CODE: i32 = -32002;
 
 /// Runs the DML Language Server.
-
 pub fn run_server(vfs: Arc<Vfs>) -> i32 {
     debug!("Language Server starting up. Version: {}", version());
     let config = Arc::new(Mutex::new(Config::default()));

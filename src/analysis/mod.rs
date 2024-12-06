@@ -652,7 +652,7 @@ impl DeviceAnalysis {
     }
 
     fn resolved_to_symbol<'t, 'c>(&'c self, obj: DMLResolvedObject<'t, 'c>)
-                                  -> Option<Vec<&SymbolRef>> {
+                                  -> Option<Vec<&'c SymbolRef>> {
         match obj {
             DMLResolvedObject::CompObject(comp) =>
                 self.symbol_info.object_symbols.get(&comp.key)

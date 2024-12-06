@@ -869,7 +869,7 @@ impl DMLCompositeObject {
     }
 
     pub fn parameters<'t>(&'t self)
-                          -> impl Iterator<Item=&'t DMLParameter> + '_ {
+                          -> impl Iterator<Item=&'t DMLParameter> + 't {
         self.components.values().filter_map(
             |c| if let DMLObject::ShallowObject(
                 DMLShallowObject {

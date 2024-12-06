@@ -38,6 +38,7 @@ jobs:
         shell: bash
         if: ${{ success() || failure() }}
         run: |
+          rm Cargo.lock
           cargo install cargo-outdated
           cargo outdated --version
           set -o pipefail
