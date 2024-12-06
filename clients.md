@@ -76,14 +76,18 @@ Requests:
 * `shutdown`
 * `initialize`
 * `textDocument/definition`
+* `textDocument/declaration`
+* `textDocument/implementation`
 * `textDocument/references`
 * `textDocument/documentSymbol`
+* `textDocument/workspaceSymbol`
 * `workspace/symbol`
 
 From Server to client:
 
 * `client/registerCapability`
 * `client/unregisterCapability`
+* `textDocument/publishDiagnostics`
 
 The DLS also uses some [custom messages](contributing.md#extensions-to-the-language-server-protocol).
 
