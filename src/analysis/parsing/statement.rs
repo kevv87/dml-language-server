@@ -1022,8 +1022,32 @@ fn parse_switchcase(context: &ParseContext, stream: &mut FileParser<'_>, file_in
         },
         Some(TokenKind::Default) => {
             let default = new_context.next_leaf(stream);
-            let colon = new_context.expect_next_kind(stream, TokenKind::Colon);
-            SwitchCase::Default(default, colon)
+            // If next token is :, we are in the standard switchcase,
+            // otherwise we are a statement expression
+            // (likely call to 'default')
+            if new_context.peek_kind(stream) == Some(TokenKind::Colon) {
+                let colon = new_context.expect_next_kind(stream,
+                                                         TokenKind::Colon);
+                SwitchCase::Default(default, colon)
+            } else {
+                // HACK: pre-construct the 'default' identifier expression
+                // and pass it directly into expression parsing
+                let default_expr = ExpressionContent::Identifier(
+                    default).into();
+                let expr = maybe_parse_tertiary_expression(
+                    Some(default_expr),
+                    &new_context,
+                    stream,
+                    file_info);
+                let semi = new_context.expect_next_kind(stream,
+                                                        TokenKind::SemiColon);
+                SwitchCase::Statement(
+                    StatementContent::Expression(
+                        ExpressionStmtContent {
+                            expression: expr,
+                            semi,
+                        }).into())
+            }
         },
         _ => SwitchCase::Statement(Statement::parse(&new_context, stream, file_info)),
     }
@@ -1922,7 +1946,7 @@ pub fn dmlstatement_first_token_matcher(token: TokenKind) -> bool {
              TokenKind::After | TokenKind::Log | TokenKind::HashSelect |
              TokenKind::Foreach | TokenKind::HashForeach | TokenKind::Continue |
              TokenKind::Break | TokenKind::Return | TokenKind::SemiColon |
-             TokenKind::LParen) ||
+             TokenKind::LParen | TokenKind::Default) ||
         dmlexpression_first_token_matcher(token)
 }
 
@@ -2632,5 +2656,70 @@ mod test {
                       })),
             &vec![]
         );
+    }
+
+    #[test]
+    fn default_statement_in_default_case() {
+        use crate::analysis::parsing::expression::FunctionCallContent;
+        let default_call = ExpressionContent::FunctionCall(
+            FunctionCallContent {
+                fun: ExpressionContent::Identifier(
+                    make_leaf(zero_range(0, 0, 21, 22),
+                              zero_range(0, 0, 22, 29),
+                              TokenKind::Default)).into(),
+                lparen: make_leaf(zero_range(0, 0, 29, 29),
+                                  zero_range(0, 0, 29, 30),
+                                  TokenKind::LParen),
+                arguments: vec![],
+                rparen: make_leaf(zero_range(0, 0, 30, 30),
+                                  zero_range(0, 0, 30, 31),
+                                  TokenKind::RParen),
+            });
+        let default_case = vec![
+            SwitchCase::Default(
+                make_leaf(zero_range(0, 0, 12, 13),
+                          zero_range(0, 0, 13, 20),
+                          TokenKind::Default),
+                make_leaf(zero_range(0, 0, 20, 20),
+                          zero_range(0, 0, 20, 21),
+                          TokenKind::Colon)),
+            SwitchCase::Statement(
+                make_ast(
+                    zero_range(0, 0, 22, 32),
+                    StatementContent::Expression(ExpressionStmtContent {
+                        expression: default_call.into(),
+                        semi: make_leaf(zero_range(0, 0, 31, 31),
+                                        zero_range(0, 0, 31, 32),
+                                        TokenKind::SemiColon)
+                    }))),
+        ];
+        test_statement_tree(
+            "switch (a) { default: default(); }",
+            &make_ast(zero_range(0, 0, 0, 34),
+                      StatementContent::Switch(SwitchContent {
+                          switchtok: make_leaf(zero_range(0, 0, 0, 0),
+                                               zero_range(0, 0, 0, 6),
+                                               TokenKind::Switch),
+                          lparen: make_leaf(zero_range(0, 0, 6, 7),
+                                            zero_range(0, 0, 7, 8),
+                                            TokenKind::LParen),
+                          expr: make_ast(
+                              zero_range(0, 0, 8, 9),
+                              ExpressionContent::Identifier(make_leaf(
+                                  zero_range(0, 0, 8, 8),
+                                  zero_range(0, 0, 8, 9),
+                                  TokenKind::Identifier))),
+                          rparen: make_leaf(zero_range(0, 0, 9, 9),
+                                            zero_range(0, 0, 9, 10),
+                                            TokenKind::RParen),
+                          lbrace: make_leaf(zero_range(0, 0, 10, 11),
+                                            zero_range(0, 0, 11, 12),
+                                            TokenKind::LBrace),
+                          cases: default_case,
+                          rbrace: make_leaf(zero_range(0, 0, 32, 33),
+                                            zero_range(0, 0, 33, 34),
+                                            TokenKind::RBrace),
+                      })),
+            &vec![]);
     }
 }
