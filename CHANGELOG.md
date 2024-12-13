@@ -4,5 +4,6 @@
 -->
 # Change Log
 
-## 1.0.0
-- Initial open-source release
+## 0.9.5
+- Fixed parse error when encountering "default" method calls while parsing switch statements
+- Fixed range comparison operation that would occasionally break sorting invariants
