@@ -1,5 +1,8 @@
 name: Archive Binary
 
+permissions:
+  actions: write
+
 on:
   push:
       branches: [ "main" ]
