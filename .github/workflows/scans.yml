@@ -1,5 +1,8 @@
 name: Cargo Check
 
+permissions:
+  actions: write
+
 on:
   workflow_call:
     inputs:
