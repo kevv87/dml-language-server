@@ -366,6 +366,7 @@ impl<O: Output> LsService<O> {
                                                      requests) => {
                     debug!("Received isolated analysis of {:?}", path);
                     if let ActionContext::Init(ctx) = &mut self.ctx {
+                        let lint_config = ctx.lint_config.lock().unwrap().to_owned();
                         ctx.update_analysis();
                         ctx.analysis.lock().unwrap().report_errors(
                             &path, &self.output);
@@ -379,11 +380,16 @@ impl<O: Output> LsService<O> {
                             if let Some(file) = ctx.construct_resolver()
                                 .resolve_with_maybe_context(&file,
                                                             context.as_ref()) {
-                                    trace!("Analysing imported file {}",
-                                           file.to_str().unwrap());
-                                    ctx.isolated_analyze(&file,
-                                                         context.clone(),
-                                                         &self.output);
+                                    if lint_config.direct_only {
+                                        trace!("Should not be here");
+                                    }
+                                    else {
+                                        trace!("Analysing imported file {}",
+                                            file.to_str().unwrap());
+                                        ctx.isolated_analyze(&file,
+                                                            context.clone(),
+                                                            &self.output);
+                                    }
                                 } else {
                                     trace!("Imported file {:?} did not resolve",
                                            file);
@@ -418,10 +424,12 @@ impl<O: Output> LsService<O> {
                 },
                 ServerToHandle::AnalysisRequest(importpath, context) => {
                     if let ActionContext::Init(ctx) = &mut self.ctx {
-                        debug!("Analysing imported file {}",
+                        if !ctx.lint_config.lock().unwrap().to_owned().direct_only {
+                            debug!("Analysing imported file {}",
                                &importpath.to_str().unwrap());
-                        ctx.isolated_analyze(
-                            &importpath, context, &self.output);
+                            ctx.isolated_analyze(
+                                &importpath, context, &self.output);
+                        }
                     }
                 }
             }
