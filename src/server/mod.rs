@@ -395,10 +395,6 @@ impl<O: Output> LsService<O> {
                                            file);
                                 }
                         }
-                        // if direct_only -> then skip device analysis {
-                        // TODO: this should apply only for DFA cli mode actually,
-                        // we don't want to suppress device analyses on
-                        // live editor mode
                         if !ctx.lint_config.lock().unwrap().direct_only {
                             ctx.trigger_device_analysis(&path, &self.output);
                         }
