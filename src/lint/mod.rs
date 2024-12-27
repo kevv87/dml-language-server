@@ -52,7 +52,7 @@ pub fn maybe_parse_lint_cfg(path: PathBuf) -> Option<LintCfg> {
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct LintCfg {
-    pub direct_only: bool,
+    pub cli_mode: bool,
     #[serde(default)]
     pub sp_brace: Option<SpBraceOptions>,
     #[serde(default)]
@@ -72,7 +72,7 @@ pub struct LintCfg {
 impl Default for LintCfg {
     fn default() -> LintCfg {
         LintCfg {
-            direct_only: true,
+            cli_mode: false,
             sp_brace: Some(SpBraceOptions{}),
             sp_punct: Some(SpPunctOptions{}),
             nsp_funpar: Some(NspFunparOptions{}),

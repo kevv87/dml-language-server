@@ -539,7 +539,7 @@ impl InitActionContext {
             return;
         }
         let lint_config = self.lint_config.lock().unwrap().to_owned();
-        if lint_config.direct_only {
+        if lint_config.cli_mode {
             let canon_path: CanonPath = file.to_path_buf().into();
             if !self.direct_opens.lock().unwrap().contains(&canon_path) {
                 return;
@@ -553,7 +553,7 @@ impl InitActionContext {
     }
 
     fn has_no_pending_direct_diagnostics(&self) -> bool {
-        if self.lint_config.lock().unwrap().direct_only {
+        if self.lint_config.lock().unwrap().cli_mode {
             return !self.pending_direct_results.load(Ordering::SeqCst)
         }
         true

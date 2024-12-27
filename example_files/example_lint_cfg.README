@@ -9,8 +9,9 @@
 // your modifications
 
 {
-    // if set to 'false', will lint indirectly imported files as well
-    "direct_only": true,
+    // if set to 'false', will parse and lint imported files as well
+    // inteded for use with dfa CLI client to lint single files
+    "cli_mode": true,
     // linting rules with no arguments are enabled by assigning an empty struct
     "sp_brace": {},
     // linting rules with arguments are straightforward

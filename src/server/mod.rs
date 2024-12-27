@@ -380,7 +380,7 @@ impl<O: Output> LsService<O> {
                             if let Some(file) = ctx.construct_resolver()
                                 .resolve_with_maybe_context(&file,
                                                             context.as_ref()) {
-                                    if lint_config.direct_only {
+                                    if lint_config.cli_mode {
                                         trace!("Should not be here");
                                     }
                                     else {
@@ -395,7 +395,7 @@ impl<O: Output> LsService<O> {
                                            file);
                                 }
                         }
-                        if !ctx.lint_config.lock().unwrap().direct_only {
+                        if !ctx.lint_config.lock().unwrap().cli_mode {
                             ctx.trigger_device_analysis(&path, &self.output);
                         }
                         ctx.maybe_trigger_lint_analysis(&path, &self.output);
@@ -420,7 +420,7 @@ impl<O: Output> LsService<O> {
                 },
                 ServerToHandle::AnalysisRequest(importpath, context) => {
                     if let ActionContext::Init(ctx) = &mut self.ctx {
-                        if !ctx.lint_config.lock().unwrap().to_owned().direct_only {
+                        if !ctx.lint_config.lock().unwrap().to_owned().cli_mode {
                             debug!("Analysing imported file {}",
                                &importpath.to_str().unwrap());
                             ctx.isolated_analyze(
