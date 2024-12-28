@@ -164,6 +164,9 @@ impl TreeElement for ParenExpressionContent {
     fn subs(&self) -> TreeElements<'_> {
         create_subs!(&self.lparen, &self.expr, &self.rparen)
     }
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+        rules.nsp_inparen.check(acc, NspInparenArgs::from_paren_expression(self));
+    }
 }
 
 impl Parse<ExpressionContent> for ParenExpressionContent{
