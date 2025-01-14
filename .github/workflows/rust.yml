@@ -1,7 +1,6 @@
 name: Archive Binary
 
-permissions:
-  actions: write
+permissions: read-all
 
 on:
   push:
