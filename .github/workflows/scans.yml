@@ -1,7 +1,6 @@
 name: Cargo Check
 
-permissions:
-  actions: write
+permissions: read-all
 
 on:
   workflow_call:

@@ -1,13 +1,13 @@
 name: Archive Binary
 
-permissions:
-  actions: write
+permissions: read-all
 
 on:
   push:
       branches: [ "main" ]
   pull_request:
       branches: [ "main" ]
+  workflow_dispatch:
   schedule:
       - cron: "0 0 * * *"
 jobs:
