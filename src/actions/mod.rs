@@ -177,7 +177,7 @@ pub struct InitActionContext {
 
     // directly opened files
     pub direct_opens: Arc<Mutex<HashSet<CanonPath>>>,
-    pub pending_direct_results: Arc<AtomicBool>,
+    pub wait_for_pending_results: Arc<AtomicBool>,
     pub compilation_info: Arc<Mutex<CompilationInfoStorage>>,
 
     prev_changes: Arc<Mutex<HashMap<PathBuf, i32>>>,
@@ -234,7 +234,7 @@ impl InitActionContext {
             lint_config,
             jobs: Arc::default(),
             direct_opens: Arc::default(),
-            pending_direct_results: Arc::new(AtomicBool::new(false)),
+            wait_for_pending_results: Arc::new(AtomicBool::new(false)),
             quiescent: Arc::new(AtomicBool::new(false)),
             prev_changes: Arc::default(),
             client_capabilities: Arc::new(client_capabilities),
@@ -436,12 +436,12 @@ impl InitActionContext {
                 "Analysing".to_string(), out.clone());
             *notifier = Some(new_notifier.id());
             new_notifier.notify_begin_progress();
-            self.pending_direct_results.store(true, Ordering::SeqCst);
+            self.wait_for_pending_results.store(true, Ordering::SeqCst);
         }
     }
     pub fn maybe_end_progress<O: Output>(&mut self, out: &O) {
         if !self.analysis_queue.has_work()
-            && self.has_no_pending_direct_diagnostics() {
+            && self.has_no_pending_diagnostics() {
             // Need the scope here to succesfully drop the guard lock before
             // going into maybe_warn_missing_builtins below
             let lock_id = { self.current_notifier.lock().unwrap().clone() };
@@ -535,7 +535,7 @@ impl InitActionContext {
                                                   file: &Path,
                                                   out: &O) {
         if !self.config.lock().unwrap().linting_enabled {
-            self.pending_direct_results.store(true, Ordering::SeqCst);
+            self.wait_for_pending_results.store(false, Ordering::SeqCst);
             return;
         }
         let lint_config = self.lint_config.lock().unwrap().to_owned();
@@ -552,9 +552,9 @@ impl InitActionContext {
                           out);
     }
 
-    fn has_no_pending_direct_diagnostics(&self) -> bool {
-        if self.lint_config.lock().unwrap().direct_only {
-            return !self.pending_direct_results.load(Ordering::SeqCst)
+    fn has_no_pending_diagnostics(&self) -> bool {
+        if self.lint_config.lock().unwrap().cli_mode {
+            return !self.wait_for_pending_results.load(Ordering::SeqCst)
         }
         true
     }

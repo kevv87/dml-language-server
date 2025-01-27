@@ -415,7 +415,7 @@ impl<O: Output> LsService<O> {
                         ctx.update_analysis();
                         ctx.analysis.try_lock().unwrap().report_errors(
                             &path, &self.output);
-                        ctx.pending_direct_results.store(false, Ordering::SeqCst);
+                        ctx.wait_for_pending_results.store(false, Ordering::SeqCst);
                     }
                 },
                 ServerToHandle::AnalysisRequest(importpath, context) => {
