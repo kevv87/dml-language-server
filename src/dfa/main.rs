@@ -91,7 +91,6 @@ fn parse_args() -> Args {
         .arg(arg!(<PATH> ... "DML files to analyze")
              .value_parser(clap::value_parser!(PathBuf)))
         .arg_required_else_help(false)
-        .arg_required_else_help(false)
         .get_matches();
     Args {
         binary: args.get_one::<PathBuf>("DLS")
