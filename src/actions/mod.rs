@@ -177,7 +177,6 @@ pub struct InitActionContext {
 
     // directly opened files
     pub direct_opens: Arc<Mutex<HashSet<CanonPath>>>,
-
     pub compilation_info: Arc<Mutex<CompilationInfoStorage>>,
 
     prev_changes: Arc<Mutex<HashMap<PathBuf, i32>>>,
@@ -534,13 +533,14 @@ impl InitActionContext {
         if !self.config.lock().unwrap().linting_enabled {
             return;
         }
-        let lint_config = self.lint_config.lock().unwrap().to_owned();
-        if lint_config.direct_only {
+        let config = self.config.lock().unwrap().to_owned();
+        if config.suppress_imports {
             let canon_path: CanonPath = file.to_path_buf().into();
             if !self.direct_opens.lock().unwrap().contains(&canon_path) {
                 return;
             }
         }
+        let lint_config = self.lint_config.lock().unwrap().to_owned();
         debug!("Triggering linting analysis of {:?}", file);
         self.lint_analyze(file,
                           None,

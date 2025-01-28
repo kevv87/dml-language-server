@@ -335,14 +335,15 @@ impl IsolatedAnalysisJob {
                 } else {
                     self.context.clone()
                 };
-                self.notify.send(ServerToHandle::IsolatedAnalysisDone(
-                    self.path.clone(),
-                    new_context,
-                    analysis.get_import_names()
-                )).ok();
+                let import_paths = analysis.get_import_names();
                 self.report.send(TimestampedStorage::make_isolated_result(
                     self.timestamp,
                     analysis)).ok();
+                self.notify.send(ServerToHandle::IsolatedAnalysisDone(
+                    self.path.clone(),
+                    new_context,
+                    import_paths
+                )).ok();
             },
             Err(e) => {
                 trace!("Failed to create isolated analysis: {}", e);

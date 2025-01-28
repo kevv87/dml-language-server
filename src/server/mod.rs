@@ -366,6 +366,7 @@ impl<O: Output> LsService<O> {
                                                      requests) => {
                     debug!("Received isolated analysis of {:?}", path);
                     if let ActionContext::Init(ctx) = &mut self.ctx {
+                        let config = ctx.config.lock().unwrap().to_owned();
                         ctx.update_analysis();
                         ctx.analysis.lock().unwrap().report_errors(
                             &path, &self.output);
@@ -376,17 +377,21 @@ impl<O: Output> LsService<O> {
                             if let Some(file) = ctx.construct_resolver()
                                 .resolve_with_maybe_context(&file,
                                                             context.as_ref()) {
-                                    trace!("Analysing imported file {}",
-                                           file.to_str().unwrap());
-                                    ctx.isolated_analyze(&file,
-                                                         context.clone(),
-                                                         &self.output);
+                                    if !config.suppress_imports {
+                                        trace!("Analysing imported file {}",
+                                            file.to_str().unwrap());
+                                        ctx.isolated_analyze(&file,
+                                                            context.clone(),
+                                                            &self.output);
+                                    }
                                 } else {
                                     trace!("Imported file {:?} did not resolve",
                                            file);
                                 }
                         }
-                        ctx.trigger_device_analysis(&path, &self.output);
+                        if !ctx.config.lock().unwrap().suppress_imports {
+                            ctx.trigger_device_analysis(&path, &self.output);
+                        }
                         ctx.maybe_trigger_lint_analysis(&path, &self.output);
                     }
                 },
@@ -405,13 +410,15 @@ impl<O: Output> LsService<O> {
                         ctx.analysis.try_lock().unwrap().report_errors(
                             &path, &self.output);
                     }
-                }, // WIP lint
+                },
                 ServerToHandle::AnalysisRequest(importpath, context) => {
                     if let ActionContext::Init(ctx) = &mut self.ctx {
-                        debug!("Analysing imported file {}",
+                        if !ctx.config.lock().unwrap().to_owned().suppress_imports {
+                            debug!("Analysing imported file {}",
                                &importpath.to_str().unwrap());
-                        ctx.isolated_analyze(
-                            &importpath, context, &self.output);
+                            ctx.isolated_analyze(
+                                &importpath, context, &self.output);
+                        }
                     }
                 }
             }

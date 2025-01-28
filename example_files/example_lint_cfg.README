@@ -9,8 +9,6 @@
 // your modifications
 
 {
-    // if set to 'false', will lint indirectly imported files as well
-    "direct_only": true,
     // linting rules with no arguments are enabled by assigning an empty struct
     "sp_brace": {},
     // linting rules with arguments are straightforward

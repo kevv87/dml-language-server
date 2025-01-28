@@ -33,6 +33,7 @@ struct Args {
     files: Vec<PathBuf>,
     workspaces: Vec<PathBuf>,
     compile_info: Option<PathBuf>,
+    suppress_imports: Option<bool>,
     linting_enabled: Option<bool>,
     lint_cfg_path: Option<PathBuf>,
     test: bool,
@@ -72,6 +73,11 @@ fn parse_args() -> Args {
                     include paths")
              .value_parser(clap::value_parser!(PathBuf))
              .required(false))
+        .arg(Arg::new("suppress-imports").short('s').long("suppress-imports")
+            .action(ArgAction::Set)
+            .help("Analyses specified files only, without also analyzing files they import")
+            .value_parser(clap::value_parser!(bool))
+            .required(false))
         .arg(Arg::new("linting-enabled").short('l').long("linting-enabled")
              .action(ArgAction::Set)
              .help("Turns linting on/off (defaults to true)")
@@ -98,6 +104,8 @@ fn parse_args() -> Args {
         quiet: args.contains_id("quiet"),
         test: args.contains_id("test"),
         compile_info: args.get_one::<PathBuf>("compile-info")
+            .cloned(),
+        suppress_imports: args.get_one::<bool>("suppress-imports")
             .cloned(),
         linting_enabled: args.get_one::<bool>("linting-enabled")
             .cloned(),
@@ -134,6 +142,7 @@ fn main_inner() -> Result<(), i32> {
     dlsclient.add_workspaces(workspace_rest.cloned().collect()).or(Err(1))?;
     let config = Config {
         compile_info_path: arg.compile_info.clone(),
+        suppress_imports: arg.suppress_imports.unwrap_or(false),
         linting_enabled,
         lint_cfg_path: arg.lint_cfg_path.clone(),
         .. Default::default()
