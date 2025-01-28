@@ -366,13 +366,10 @@ impl<O: Output> LsService<O> {
                                                      requests) => {
                     debug!("Received isolated analysis of {:?}", path);
                     if let ActionContext::Init(ctx) = &mut self.ctx {
-                        let lint_config = ctx.lint_config.lock().unwrap().to_owned();
+                        let config = ctx.config.lock().unwrap().to_owned();
                         ctx.update_analysis();
                         ctx.analysis.lock().unwrap().report_errors(
                             &path, &self.output);
-                        // TODO: suppress import resolver, or better yet,
-                        // have `requests` be empty here when using direct only
-                        // mode
                         for file in requests {
                             // A little bit of redundancy here, we need to
                             // pre-resolve this import into an absolute path
@@ -380,10 +377,7 @@ impl<O: Output> LsService<O> {
                             if let Some(file) = ctx.construct_resolver()
                                 .resolve_with_maybe_context(&file,
                                                             context.as_ref()) {
-                                    if lint_config.cli_mode {
-                                        trace!("Should not be here");
-                                    }
-                                    else {
+                                    if !config.suppress_imports {
                                         trace!("Analysing imported file {}",
                                             file.to_str().unwrap());
                                         ctx.isolated_analyze(&file,
@@ -395,7 +389,7 @@ impl<O: Output> LsService<O> {
                                            file);
                                 }
                         }
-                        if !ctx.lint_config.lock().unwrap().cli_mode {
+                        if !ctx.config.lock().unwrap().suppress_imports {
                             ctx.trigger_device_analysis(&path, &self.output);
                         }
                         ctx.maybe_trigger_lint_analysis(&path, &self.output);
@@ -415,12 +409,11 @@ impl<O: Output> LsService<O> {
                         ctx.update_analysis();
                         ctx.analysis.try_lock().unwrap().report_errors(
                             &path, &self.output);
-                        ctx.wait_for_pending_results.store(false, Ordering::SeqCst);
                     }
                 },
                 ServerToHandle::AnalysisRequest(importpath, context) => {
                     if let ActionContext::Init(ctx) = &mut self.ctx {
-                        if !ctx.lint_config.lock().unwrap().to_owned().cli_mode {
+                        if !ctx.config.lock().unwrap().to_owned().suppress_imports {
                             debug!("Analysing imported file {}",
                                &importpath.to_str().unwrap());
                             ctx.isolated_analyze(

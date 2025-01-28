@@ -335,13 +335,14 @@ impl IsolatedAnalysisJob {
                 } else {
                     self.context.clone()
                 };
+                let import_paths = analysis.get_import_names();
                 self.report.send(TimestampedStorage::make_isolated_result(
                     self.timestamp,
-                    analysis.clone())).ok();
+                    analysis)).ok();
                 self.notify.send(ServerToHandle::IsolatedAnalysisDone(
                     self.path.clone(),
                     new_context,
-                    analysis.get_import_names()
+                    import_paths
                 )).ok();
             },
             Err(e) => {
