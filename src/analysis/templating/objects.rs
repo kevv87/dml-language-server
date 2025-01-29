@@ -1689,8 +1689,16 @@ fn merge_composite_subobj<'c>(name: String,
         .map(|d|(d.clone(), vec![])).collect();
     for (decl, _) in &specs {
         if decl.obj.dims.len() != array_info.len() {
+            // When an object with no array decl conflicts with an object
+            // with one, blame the object decl
+            let error_span = if !decl.obj.dims.is_empty() {
+                combine_vec_of_decls(&decl.obj.dims)
+            } else {
+                *decl.obj.span()
+            };
+
             report.push(DMLError {
-                span: combine_vec_of_decls(&decl.obj.dims),
+                span: error_span,
                 description: "Mismatching number of dimensions \
                               in object declaration".to_string(),
                 related: vec![(combine_vec_of_decls(&auth_obj.obj.dims),

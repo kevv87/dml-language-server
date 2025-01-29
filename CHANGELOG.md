@@ -4,6 +4,9 @@
 -->
 # Change Log
 
+## 0.9.7
+- Fixed DLS crash that occured when an object was declarated both with array dimensions and without
+
 ## 0.9.6
 - Added DFA command-line-option "--suppress-imports" which makes the server not recurse analysis into imported files
 
