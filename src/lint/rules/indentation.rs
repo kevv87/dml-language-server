@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::Rule;
 
 pub const MAX_LENGTH_DEFAULT: u32 = 80;
+pub const INDENTATION_LEVEL_DEFAULT: u32 = 4;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LongLineOptions {
@@ -158,6 +159,85 @@ impl Rule for IN3Rule {
     fn description() -> &'static str {
         "Previous line contains an openning brace and current line is not one\
          level of indentation ahead of past line"
+    }
+}
+
+// IN6: Continuation Line
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ContinuationLineOptions {
+    pub indentation_spaces: u32,
+}
+
+pub struct ContinuationLineRule {
+    pub enabled: bool,
+    pub indentation_spaces: u32,
+}
+
+impl ContinuationLineRule {
+    pub fn from_options(options: &Option<ContinuationLineOptions>) -> ContinuationLineRule {
+        match options {
+            Some(continuation_line) => ContinuationLineRule {
+                enabled: true,
+                indentation_spaces: continuation_line.indentation_spaces,
+            },
+            None => ContinuationLineRule {
+                enabled: false,
+                indentation_spaces: INDENTATION_LEVEL_DEFAULT,
+            },
+        }
+    }
+
+    pub fn check(&self, acc: &mut Vec<LocalDMLError>, lines: &[&str]) {
+        if !self.enabled {
+            return;
+        }
+
+        let arithmetic_operators = ["+", "-", "*", "/", "%", "="];
+        let comparison_operators = ["==", "!=", "<", ">", "<=", ">="];
+        let logical_operators = ["&&", "||"];
+        let bitwise_operators = ["&", "|", "<<", ">>"];
+
+        let operators = [
+            &arithmetic_operators[..],
+            &comparison_operators[..],
+            &logical_operators[..],
+            &bitwise_operators[..],
+        ];
+    
+        for (i, line) in lines.iter().enumerate() {
+            if let Some(last_char) = line.trim().chars().last() {
+                if operators.iter().any(|ops| ops.contains(&last_char.to_string().as_str())) {
+                    let next_line = lines.get(i + 1);
+                    if let Some(next_line) = next_line {
+                        let expected_indent = line.chars().take_while(|c| c.is_whitespace()).count() + self.indentation_spaces as usize;
+                        let actual_indent = next_line.chars().take_while(|c| c.is_whitespace()).count();
+                        if actual_indent != expected_indent {
+                            let msg = ContinuationLineRule::description().to_owned();
+                            let dmlerror = LocalDMLError {
+                                range: Range::new(
+                                    Row::new_zero_indexed((i + 1) as u32),
+                                    Row::new_zero_indexed((i + 1) as u32),
+                                    Column::new_zero_indexed(0),
+                                    Column::new_zero_indexed(next_line.len() as u32)
+                                ),
+                                description: msg,
+                            };
+                            acc.push(dmlerror);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Rule for ContinuationLineRule {
+    fn name() -> &'static str {
+        "CONTINUATION_LINE"
+    }
+
+    fn description() -> &'static str {
+        "Continuation line not indented correctly"
     }
 }
 

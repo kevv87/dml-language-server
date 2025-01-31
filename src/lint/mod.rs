@@ -6,14 +6,16 @@ use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IN3Options, IN9Options},
+                      indentation::{LongLineOptions, IN3Options,
+                                    IN9Options, ContinuationLineOptions},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
 use crate::file_management::CanonPath;
 use crate::vfs::{Error, TextFile};
 use crate::analysis::parsing::structure::TopAst;
-use crate::lint::rules::indentation::MAX_LENGTH_DEFAULT;
+use crate::lint::rules::indentation::{MAX_LENGTH_DEFAULT,
+                                      INDENTATION_LEVEL_DEFAULT};
 
 pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
     debug!("Reading Lint configuration from {:?}", path);
@@ -55,6 +57,8 @@ pub struct LintCfg {
     #[serde(default)]
     pub in3: Option<IN3Options>,
     #[serde(default)]
+    pub continuation_line: Option<ContinuationLineOptions>,
+    #[serde(default)]
     pub in9: Option<IN9Options>,
 }
 
@@ -71,6 +75,9 @@ impl Default for LintCfg {
                 max_length: MAX_LENGTH_DEFAULT,
                             }),
             in3: Some(IN3Options{indentation_spaces: 4}),
+            continuation_line: Some(ContinuationLineOptions {
+                indentation_spaces: INDENTATION_LEVEL_DEFAULT,
+            }),
             in9: Some(IN9Options{indentation_spaces: 4}),
         }
     }
@@ -123,6 +130,9 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
         rules.long_lines.check(&mut linting_errors, row, line);
         rules.nsp_trailing.check(&mut linting_errors, row, line);
     }
+
+    // Continuation line check
+    rules.continuation_line.check(&mut linting_errors, &lines);
 
     Ok(linting_errors)
 }
