@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules};
-use rules::spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
-                     NspInparenOptions, NspUnaryOptions, NspTrailingOptions};
-use rules::indentation::{LongLineOptions};
+use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
+                      NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
+                      indentation::{LongLineOptions, IN3Options},
+                    };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
 use crate::file_management::CanonPath;
@@ -66,6 +67,8 @@ pub struct LintCfg {
     pub nsp_trailing: Option<NspTrailingOptions>,
     #[serde(default)]
     pub long_lines: Option<LongLineOptions>,
+    #[serde(default)]
+    pub in3: Option<IN3Options>,
 }
 
 impl Default for LintCfg {
@@ -79,7 +82,8 @@ impl Default for LintCfg {
             nsp_trailing: Some(NspTrailingOptions{}),
             long_lines: Some(LongLineOptions {
                 max_length: MAX_LENGTH_DEFAULT,
-            }),
+                            }),
+            in3: Some(IN3Options{indentation_spaces: 4}),
         }
     }
 }

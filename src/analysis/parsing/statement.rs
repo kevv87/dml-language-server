@@ -21,10 +21,12 @@ use crate::analysis::parsing::misc::{Initializer, InitializerContent, CDecl,
                                      ident_filter, objident_filter};
 use crate::analysis::parsing::structure::{parse_vardecl, VarDecl};
 use crate::analysis::LocalDMLError;
-use crate::lint::rules::spacing::{NspInparenArgs,
-                                  SpBracesArgs,
-                                  SpPunctArgs};
-use crate::lint::rules::CurrentRules;
+use crate::lint::rules::{CurrentRules,
+                         indentation::IN3Args,
+                         spacing::{NspInparenArgs,
+                                   SpBracesArgs,
+                                   SpPunctArgs},
+                        };
 use crate::vfs::TextFile;
 
 fn statement_contexts(context: &ParseContext)
@@ -139,8 +141,9 @@ impl TreeElement for CompoundContent {
     fn subs(&self) -> TreeElements<'_> {
         create_subs!(&self.lbrace, &self.statements, &self.rbrace)
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, depth: &mut u32) {
         rules.sp_brace.check(acc, SpBracesArgs::from_compound(self));
+        rules.in3.check(acc, IN3Args::from_compound_content(self, depth));
     }
 }
 
