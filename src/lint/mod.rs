@@ -122,10 +122,12 @@ impl LinterAnalysis {
 
 pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Result<Vec<LocalDMLError>, Error> {
     let mut linting_errors: Vec<LocalDMLError> = vec![];
-    ast.style_check(&mut linting_errors, rules);
+    let initial_indentation: u32 = 0;
+    ast.style_check(&mut linting_errors, rules, initial_indentation);
 
     // Per line checks
-    for (row, line) in file.lines().enumerate() {
+    let lines: Vec<&str> = file.lines().collect();
+    for (row, line) in lines.iter().enumerate() {
         rules.long_lines.check(&mut linting_errors, row, line);
         rules.nsp_trailing.check(&mut linting_errors, row, line);
     }

@@ -91,13 +91,13 @@ pub trait TreeElement {
         self.default_references(accumulator, file);
     }
 
-    fn style_check(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
-        self.evaluate_rules(acc, rules);
+    fn style_check(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, mut depth: u32) {
+        self.evaluate_rules(acc, rules, &mut depth);
         for sub in self.subs() {
-            sub.style_check(acc, rules);
+            sub.style_check(acc, rules, depth);
         }
     }
-    fn evaluate_rules(&self, _acc: &mut Vec<LocalDMLError>, _rules: &CurrentRules) {} // default NOOP
+    fn evaluate_rules(&self, _acc: &mut Vec<LocalDMLError>, _rules: &CurrentRules, _depth: &mut u32) {} // default NOOP
 }
 
 impl <T: ?Sized + TreeElement> ReferenceContainer for T {

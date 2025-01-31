@@ -139,7 +139,7 @@ impl TreeElement for CompoundContent {
     fn subs(&self) -> TreeElements<'_> {
         create_subs!(&self.lbrace, &self.statements, &self.rbrace)
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
         rules.sp_brace.check(acc, SpBracesArgs::from_compound(self));
     }
 }
@@ -192,7 +192,7 @@ impl TreeElement for VariableDeclContent {
     fn post_parse_sanity(&self, _file: &TextFile) -> Vec<LocalDMLError> {
         self.decls.ensure_named()
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
         rules.sp_punct.check(acc, SpPunctArgs::from_variable_decl(self));
     }
 }
@@ -424,7 +424,7 @@ impl TreeElement for IfContent {
                      &self.truebranch,
                      &self.elsebranch)
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
         rules.nsp_inparen.check(acc, NspInparenArgs::from_if(self));
     }
 }
@@ -999,6 +999,8 @@ impl TreeElement for SwitchCase {
             Self::HashIf(content) => create_subs!(content),
             Self::Default(default, colon) => create_subs!(default, colon),
         }
+    }
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
     }
 }
 
@@ -1709,7 +1711,7 @@ impl TreeElement for ExpressionStmtContent {
     fn subs(&self) -> TreeElements<'_> {
         create_subs!(&self.expression, &self.semi)
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
         rules.sp_punct.check(acc, SpPunctArgs::from_expression_stmt(self));
     }
 }

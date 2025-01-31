@@ -234,7 +234,7 @@ impl TreeElement for MethodContent {
         }
         errors
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
         rules.nsp_funpar.check(acc, NspFunparArgs::from_method(self));
         rules.nsp_inparen.check(acc, NspInparenArgs::from_method(self));
         rules.sp_punct.check(acc, SpPunctArgs::from_method(self));
@@ -703,7 +703,7 @@ impl TreeElement for ObjectStatementsContent {
                 create_subs!(left, vect, right)
         }
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
         rules.sp_brace.check(acc, SpBracesArgs::from_obj_stmts(self));
     }
 }
