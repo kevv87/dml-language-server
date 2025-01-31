@@ -22,7 +22,7 @@ use crate::analysis::parsing::misc::{Initializer, InitializerContent, CDecl,
 use crate::analysis::parsing::structure::{parse_vardecl, VarDecl};
 use crate::analysis::LocalDMLError;
 use crate::lint::rules::{CurrentRules,
-                         indentation::IN3Args,
+                         indentation::{IN3Args, IN9Args},
                          spacing::{NspInparenArgs,
                                    SpBracesArgs,
                                    SpPunctArgs},
@@ -1003,7 +1003,8 @@ impl TreeElement for SwitchCase {
             Self::Default(default, colon) => create_subs!(default, colon),
         }
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, depth: &mut u32) {
+        rules.in9.check(acc, IN9Args::from_switch_case(self, depth));
     }
 }
 

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IN3Options},
+                      indentation::{LongLineOptions, IN3Options, IN9Options},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
@@ -54,6 +54,8 @@ pub struct LintCfg {
     pub long_lines: Option<LongLineOptions>,
     #[serde(default)]
     pub in3: Option<IN3Options>,
+    #[serde(default)]
+    pub in9: Option<IN9Options>,
 }
 
 impl Default for LintCfg {
@@ -69,6 +71,7 @@ impl Default for LintCfg {
                 max_length: MAX_LENGTH_DEFAULT,
                             }),
             in3: Some(IN3Options{indentation_spaces: 4}),
+            in9: Some(IN9Options{indentation_spaces: 4}),
         }
     }
 }

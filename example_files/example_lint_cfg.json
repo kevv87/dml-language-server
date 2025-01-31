@@ -7,4 +7,5 @@
     "nsp_trailing": {},
     "long_lines": { "max_length": 80 },
     "in3": { "indentation_spaces": 4 },
+    "in9": { "indentation_spaces": 4 },
 }

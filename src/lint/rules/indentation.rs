@@ -1,11 +1,11 @@
 use std::convert::TryInto;
 
-use crate::analysis::parsing::{statement::CompoundContent,
+use crate::analysis::parsing::{statement::{self, CompoundContent, SwitchCase},
                                structure::ObjectStatementsContent,
                                types::{LayoutContent, StructTypeContent}};
 use crate::span::{Range, ZeroIndexed, Row, Column};
 use crate::analysis::LocalDMLError;
-use crate::analysis::parsing::tree::{ZeroRange, TreeElement};
+use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
 use serde::{Deserialize, Serialize};
 use super::Rule;
 
@@ -158,6 +158,90 @@ impl Rule for IN3Rule {
     fn description() -> &'static str {
         "Previous line contains an openning brace and current line is not one\
          level of indentation ahead of past line"
+    }
+}
+
+pub struct IN9Rule {
+    pub enabled: bool,
+    indentation_spaces: u32
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct IN9Options {
+    pub indentation_spaces: u32,
+}
+pub struct IN9Args<'a> {
+    case_range: ZeroRange,
+    expected_depth: &'a mut u32,
+}
+
+impl IN9Args<'_> {
+    pub fn from_switch_case<'a>(node: &SwitchCase, depth: &'a mut u32) -> Option<IN9Args<'a>> {
+        match node {
+            SwitchCase::Case(_, _, _) |
+            SwitchCase::Default(_, _) => {},
+            SwitchCase::Statement(statement) => {
+                if let Content::Some(ref content) = *statement.content {
+                    if let statement::StatementContent::Compound(_) = content {
+                        return None;
+                    }
+                    *depth += 1;
+                }
+            },
+            SwitchCase::HashIf(_) => {
+                return None;
+            }
+        }
+
+        Some(IN9Args {
+            case_range: node.range(),
+            expected_depth: depth
+        })
+
+    }
+}
+
+impl IN9Rule {
+    pub fn from_options(options: &Option<IN9Options>) -> IN9Rule {
+        match options {
+            Some(options) => IN9Rule {
+                enabled: true,
+                indentation_spaces: options.indentation_spaces
+            },
+            None => IN9Rule {
+                enabled: false,
+                indentation_spaces: 0
+            }
+        }
+    }
+    pub fn check<'a>(&self, acc: &mut Vec<LocalDMLError>,
+        args: Option<IN9Args<'a>>)
+    {
+        if !self.enabled { return; }
+        let Some(args) = args else { return; };
+        if self.indentation_is_not_aligned(args.case_range, *args.expected_depth) {
+            let dmlerror = LocalDMLError {
+                range: args.case_range,
+                description: Self::description().to_string(),
+            };
+            acc.push(dmlerror);
+        }
+    }
+    fn indentation_is_not_aligned(&self, member_range: ZeroRange, depth: u32) -> bool {
+        // Implicit IN1
+        let expected_column = self.indentation_spaces * depth;
+        print!("{:#?}", expected_column);
+        member_range.col_start.0 != expected_column
+    }
+}
+
+impl Rule for IN9Rule {
+    fn name() -> &'static str {
+        "IN9"
+    }
+    fn description() -> &'static str {
+        "Case labels are indented one level less than surrounding lines, \
+         so that they are on the same level as the switch statement"
     }
 }
 

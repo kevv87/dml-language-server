@@ -5,7 +5,7 @@ pub mod test;
 use spacing::{SpBracesRule,
     SpPunctRule, NspFunparRule, NspInparenRule,
     NspUnaryRule, NspTrailingRule};
-use indentation::{LongLinesRule, IN3Rule};
+use indentation::{LongLinesRule, IN3Rule, IN9Rule};
 use crate::lint::LintCfg;
 
 pub struct CurrentRules {
@@ -17,6 +17,7 @@ pub struct CurrentRules {
     pub nsp_trailing: NspTrailingRule,
     pub long_lines: LongLinesRule,
     pub in3: IN3Rule,
+    pub in9: IN9Rule
 }
 
 pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
@@ -29,6 +30,7 @@ pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
         nsp_trailing: NspTrailingRule { enabled: cfg.nsp_trailing.is_some() },
         long_lines: LongLinesRule::from_options(&cfg.long_lines),
         in3: IN3Rule::from_options(&cfg.in3),
+        in9: IN9Rule::from_options(&cfg.in9),
     }
 }
 
