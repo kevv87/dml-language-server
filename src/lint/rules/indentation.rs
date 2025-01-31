@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
 use crate::analysis::parsing::{statement::CompoundContent,
+                               structure::ObjectStatementsContent,
                                types::{LayoutContent, StructTypeContent}};
 use crate::span::{Range, ZeroIndexed, Row, Column};
 use crate::analysis::LocalDMLError;
@@ -74,6 +75,18 @@ pub struct IN3Args<'a> {
 }
 
 impl IN3Args<'_> {
+    pub fn from_obj_stmts_content<'a>(node: &ObjectStatementsContent, depth: &'a mut u32) -> Option<IN3Args<'a>> {
+        if let ObjectStatementsContent::List(lbrace, stmnts, rbrace) = node {
+            Some(IN3Args {
+                members_ranges: stmnts.iter().map(|s| s.range()).collect(),
+                lbrace: lbrace.range(),
+                rbrace: rbrace.range(),
+                expected_depth: depth,
+            })
+        } else {
+            None
+        }
+    }
     pub fn from_struct_type_content<'a>(node: &StructTypeContent, depth: &'a mut u32) -> Option<IN3Args<'a>> {
         Some(IN3Args {
             members_ranges: node.members.iter().map(|m| m.range()).collect(),
