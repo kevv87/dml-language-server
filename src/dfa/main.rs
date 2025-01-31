@@ -57,11 +57,12 @@ fn parse_args() -> Args {
              .help("Emulate a specific path as a workspace root")
              .value_parser(clap::value_parser!(PathBuf))
              .required(false))
-        .arg(Arg::new("test")
-             .short('t')
+        .arg(Arg::new("test").short('t')
              .help("If any diagnostic errors are reported, \
                     exit with errorcode")
-             .required(false))
+             .action(ArgAction::Set)
+             .value_parser(clap::value_parser!(bool))
+            .required(false))
         .arg(Arg::new("quiet")
              .short('q')
              .help("Do not output information about which errors \
@@ -101,7 +102,7 @@ fn parse_args() -> Args {
         workspaces: args.get_many::<PathBuf>("workspace")
             .map_or(vec![], |vr|vr.cloned().collect()),
         quiet: args.contains_id("quiet"),
-        test: args.contains_id("test"),
+        test: args.get_one::<bool>("test").cloned().unwrap_or(false),
         compile_info: args.get_one::<PathBuf>("compile-info")
             .cloned(),
         suppress_imports: args.get_one::<bool>("suppress-imports")
@@ -151,7 +152,7 @@ fn main_inner() -> Result<(), i32> {
     for file in &arg.files {
         dlsclient.open_file(file).or(Err(1))?;
     }
-
+    let mut exit_code = Ok(());
     if !arg.files.is_empty() {
 
         if linting_enabled {
@@ -169,9 +170,8 @@ fn main_inner() -> Result<(), i32> {
         if !arg.quiet {
             dlsclient.output_errors();
         }
-
-        if arg.test {
-            dlsclient.no_errors().or(Err(1))?;
+        if arg.test && !dlsclient.no_errors() {
+            exit_code = Err(1);
         }
     }
 
@@ -179,5 +179,5 @@ fn main_inner() -> Result<(), i32> {
     // the server here
     dlsclient.shutdown().ok();
 
-    Ok(())
+    exit_code
 }
