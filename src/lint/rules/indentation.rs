@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
-use crate::analysis::parsing::statement::CompoundContent;
+use crate::analysis::parsing::{statement::CompoundContent,
+                               types::{LayoutContent, StructTypeContent}};
 use crate::span::{Range, ZeroIndexed, Row, Column};
 use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{ZeroRange, TreeElement};
@@ -73,9 +74,25 @@ pub struct IN3Args<'a> {
 }
 
 impl IN3Args<'_> {
+    pub fn from_struct_type_content<'a>(node: &StructTypeContent, depth: &'a mut u32) -> Option<IN3Args<'a>> {
+        Some(IN3Args {
+            members_ranges: node.members.iter().map(|m| m.range()).collect(),
+            lbrace: node.lbrace.range(),
+            rbrace: node.rbrace.range(),
+            expected_depth: depth,
+        })
+    }
     pub fn from_compound_content<'a>(node: &CompoundContent, depth: &'a mut u32) -> Option<IN3Args<'a>> {
         Some(IN3Args {
             members_ranges: node.statements.iter().map(|s| s.range()).collect(),
+            lbrace: node.lbrace.range(),
+            rbrace: node.rbrace.range(),
+            expected_depth: depth,
+        })
+    }
+    pub fn from_layout_content<'a>(node: &LayoutContent, depth: &'a mut u32) -> Option<IN3Args<'a>> {
+        Some(IN3Args {
+            members_ranges: node.fields.iter().map(|m| m.range()).collect(),
             lbrace: node.lbrace.range(),
             rbrace: node.rbrace.range(),
             expected_depth: depth,

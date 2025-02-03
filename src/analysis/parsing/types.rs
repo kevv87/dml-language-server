@@ -1,7 +1,8 @@
-use crate::lint::rules::spacing::SpBracesArgs;
-use crate::lint::rules::CurrentRules;
 //  © 2024 Intel Corporation
 //  SPDX-License-Identifier: Apache-2.0 and MIT
+use crate::lint::rules::{indentation::IN3Args,
+                         spacing::SpBracesArgs,
+                         CurrentRules};
 use crate::span::Range;
 use crate::analysis::parsing::lexer::TokenKind;
 use crate::analysis::parsing::parser::{doesnt_understand_tokens,
@@ -50,7 +51,8 @@ impl TreeElement for StructTypeContent {
         }
         errors
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, depth: &mut u32) {
+        rules.in3.check(acc, IN3Args::from_struct_type_content(self, depth));
         rules.sp_brace.check(acc, SpBracesArgs::from_struct_type_content(self));
     }
 }
@@ -128,7 +130,8 @@ impl TreeElement for LayoutContent {
         }
         errors
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _depth: &mut u32) {
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, depth: &mut u32) {
+        rules.in3.check(acc, IN3Args::from_layout_content(self, depth));
         rules.sp_brace.check(acc, SpBracesArgs::from_layout_content(self));
     }
 }
