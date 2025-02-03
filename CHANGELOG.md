@@ -4,6 +4,9 @@
 -->
 # Change Log
 
+## 0.9.8
+- Correct behavior of DFA "-t" flag
+
 ## 0.9.7
 - Fixed DLS crash that occured when an object was declarated both with array dimensions and without
 
