@@ -13,22 +13,7 @@ use crate::analysis::parsing::tree::TreeElement;
 use crate::file_management::CanonPath;
 use crate::vfs::{Error, TextFile};
 use crate::analysis::parsing::structure::TopAst;
-use crate::lint::rules::indentation::{LongLinesRule, MAX_LENGTH_DEFAULT};
-
-impl LongLineOptions{
-    fn into_rule(options: &Option<LongLineOptions>) -> LongLinesRule {
-        match options {
-            Some(long_lines) => LongLinesRule {
-                enabled: true,
-                max_length: long_lines.max_length,
-            },
-            None => LongLinesRule {
-                enabled: false,
-                max_length: MAX_LENGTH_DEFAULT,
-            },
-        }
-    }
-}
+use crate::lint::rules::indentation::MAX_LENGTH_DEFAULT;
 
 pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
     debug!("Reading Lint configuration from {:?}", path);

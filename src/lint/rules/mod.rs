@@ -27,6 +27,7 @@ pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
         nsp_inparen: NspInparenRule { enabled: cfg.nsp_inparen.is_some() },
         nsp_unary: NspUnaryRule { enabled: cfg.nsp_unary.is_some() },
         nsp_trailing: NspTrailingRule { enabled: cfg.nsp_trailing.is_some() },
+        long_lines: LongLinesRule::from_options(&cfg.long_lines),
         in3: IN3Rule::from_options(&cfg.in3),
     }
 }

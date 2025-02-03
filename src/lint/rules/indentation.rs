@@ -20,6 +20,18 @@ pub struct LongLinesRule {
 }
 
 impl LongLinesRule {
+    pub fn from_options(options: &Option<LongLineOptions>) -> LongLinesRule {
+        match options {
+            Some(long_lines) => LongLinesRule {
+                enabled: true,
+                max_length: long_lines.max_length,
+            },
+            None => LongLinesRule { 
+                enabled: false,
+                max_length: MAX_LENGTH_DEFAULT,
+            },
+        }
+    }
     pub fn check(&self, acc: &mut Vec<LocalDMLError>, row: usize, line: &str) {
         if !self.enabled { return; }
         let len = line.len().try_into().unwrap();
