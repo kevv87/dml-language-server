@@ -1,4 +1,5 @@
-use crate::lint::rules::tests::common::{set_up, assert_indentation};
+use crate::lint::rules::tests::common::set_up;
+use crate::lint::rules::tests::indentation::assert_indentation;
 
 pub static IN3_FUNCTION_CONTENTS_CORRECT_INDENT: &str = "
 method some_function(int a) {

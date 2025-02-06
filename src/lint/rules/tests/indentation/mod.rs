@@ -1,13 +1,27 @@
 pub mod in3;
-pub mod in5;
 pub mod in6;
 pub mod in9;
 
-use crate::lint::rules::tests::common::assert_snippet;
-use crate::lint::rules::instantiate_rules;
+use crate::lint::rules::tests::common::{assert_snippet, run_linter};
 use crate::lint::LintCfg;
 use crate::lint::LongLineOptions;
+use crate::lint::rules::{CurrentRules, instantiate_rules};
+use crate::analysis::LocalDMLError;
 use std::convert::TryInto;
+
+pub fn assert_indentation(
+    code: &str, expected_errors: usize, rules: CurrentRules)
+{
+    let lint_errors = run_linter(code, &rules);
+    let Ok(ref lint_errors) = lint_errors else {
+        panic!();
+    };
+    let mut indent_errors: Vec<&LocalDMLError> = vec!();
+    for error in lint_errors {
+        indent_errors.push(error);
+    }
+    assert_eq!(indent_errors.len(), expected_errors, "{:#?}", lint_errors);
+}
 
 //  Line length can be configured to a maximum
 //(defaults to 80, feature disabled)
