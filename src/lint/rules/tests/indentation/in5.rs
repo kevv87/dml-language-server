@@ -1,4 +1,4 @@
-use crate::lint::rules::test::common::{set_up};
+use crate::lint::rules::tests::common::{set_up};
 
 pub static TEST_01_BASIC: &str = "
 call_func(a,b);
