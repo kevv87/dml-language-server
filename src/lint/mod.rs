@@ -121,8 +121,7 @@ impl LinterAnalysis {
 
 pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Result<Vec<LocalDMLError>, Error> {
     let mut linting_errors: Vec<LocalDMLError> = vec![];
-    let initial_indentation: u32 = 0;
-    ast.style_check(&mut linting_errors, rules, initial_indentation);
+    ast.style_check(&mut linting_errors, rules, AuxParams { depth: 0 });      
 
     // Per line checks
     let lines: Vec<&str> = file.lines().collect();
@@ -135,6 +134,11 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
     rules.continuation_line.check(&mut linting_errors, &lines);
 
     Ok(linting_errors)
+}
+
+#[derive(Copy, Clone)]
+pub struct AuxParams {
+    pub depth: u32,
 }
 
 
