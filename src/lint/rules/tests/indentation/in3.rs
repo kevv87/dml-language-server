@@ -1,30 +1,5 @@
-#[cfg(test)]
-pub mod indentation_tests {
-
-use crate::lint::LintCfg;
-use crate::lint::rules::tests::{run_linter, assert_snippet};
-use crate::lint::rules::instantiate_rules;
-use crate::lint::rules::CurrentRules;
-use crate::analysis::LocalDMLError;
-
-fn set_up() -> CurrentRules {
-    let cfg = LintCfg::default();
-    instantiate_rules(&cfg)
-}
-
-fn assert_indentation(
-    code: &str, expected_errors: usize, rules: CurrentRules)
-{
-    let lint_errors = run_linter(code, &rules);
-    let Ok(ref lint_errors) = lint_errors else {
-        panic!();
-    };
-    let mut indent_errors: Vec<&LocalDMLError> = vec!();
-    for error in lint_errors {
-        indent_errors.push(error);
-    }
-    assert_eq!(indent_errors.len(), expected_errors, "{:#?}", lint_errors);
-}
+use crate::lint::rules::tests::common::set_up;
+use crate::lint::rules::tests::indentation::assert_indentation;
 
 pub static IN3_FUNCTION_CONTENTS_CORRECT_INDENT: &str = "
 method some_function(int a) {
@@ -162,122 +137,9 @@ method control_device() {
     }
 }
 ";
+
 #[test]
 fn in3_cond_structure_bad_indent() {
     let rules = set_up();
     assert_indentation(IN3_COND_STRUCTURE_BAD_INDENT, 4, rules);
-}
-
-pub static IN9_CORRECT_CASE_INDENT: &str = "
-method some_switch(int arg) {
-    switch(arg) {
-    case ZERO:
-#if (asdd == 0) {
-        some_call();
-}
-        if (a) {
-            return;
-        }
-        some_call();
-        break;
-    default: { return; }
-    }
-}
-";
-
-pub static IN9_INCORRECT_CASE_INDENT: &str = "
-method some_switch(int arg) {
-    switch(arg) {
-      case ZERO:
-#if (asdd == 0) {
-          some_call();
-}
-          if (a) {
-            return;
-        }
-        some_call();
-        break;
-    case ONE: {
-          return;
-    }
-    default: { return; }
-    }
-}
-";
-
-#[test]
-// #[ignore]
-fn in9_correct_case_indent() {
-    let rules = set_up();
-    assert_snippet(IN9_CORRECT_CASE_INDENT, 0, &rules);
-    assert_snippet(IN9_INCORRECT_CASE_INDENT, 4, &rules);
-}
-
-pub static IN6_CONTINUATION_LINE_INCORRECT: &str = "
-method set_irq() {
-    interrupt_enabled =
-irq_enabled(interrupt_device);
-}
-";
-
-pub static IN6_CONTINUATION_LINE_INCORRECT_2: &str = "
-bank regs {
-    register control size 4 @ 0x00 {
-        field enable @ [0];
-        field mode @ [2:1];
-        field status @ [31:3] {
-            param init_val = (1 << 2) |
-                                   (1 << 1);
-        }
-    }
-}
-";
-
-pub static IN6_CONTINUATION_LINE_INCORRECT_3: &str = "
-method write(uint64 value) {
-    local uint64 a = value;
-    local uint64 result = a <<
-                               2;
-    log info: 'Writing to register, result after left shift = %x', result;
-}
-";
-
-pub static IN6_CONTINUATION_LINE_OK: &str = "
-method set_irq() {
-    interrupt_enabled =
-        irq_enabled(interrupt_device);
-}
-";
-
-pub static IN6_CONTINUATION_LINE_OK_2: &str = "
-method calculate_sum(uint64 a, uint64 b) -> (uint64) {
-    return (a + b) * (a - b) +
-        (a * b);
-}
-";
-
-pub static IN6_CONTINUATION_LINE_OK_3: &str = "
-bank regs {
-    register example_register size 4 @ 0x00 {
-        method read() -> (uint64) {
-            local uint64 value = (this.val + 10) *
-                (this.val - 5);
-            return value;
-        }
-    }
-}
-";
-
-#[test]
-fn in6_continuation_line() {
-    let rules = set_up();
-
-    assert_snippet(IN6_CONTINUATION_LINE_INCORRECT, 1, &rules);
-    assert_snippet(IN6_CONTINUATION_LINE_INCORRECT_2, 1, &rules);
-    assert_snippet(IN6_CONTINUATION_LINE_INCORRECT_3, 1, &rules);
-    assert_snippet(IN6_CONTINUATION_LINE_OK, 0, &rules);
-    assert_snippet(IN6_CONTINUATION_LINE_OK_2, 0, &rules);
-    assert_snippet(IN6_CONTINUATION_LINE_OK_3, 0, &rules);
-}
-
 }

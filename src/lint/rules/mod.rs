@@ -1,6 +1,8 @@
 pub mod spacing;
 pub mod indentation;
-pub mod test;
+
+#[cfg(test)]
+pub mod tests;
 
 use spacing::{SpBracesRule,
     SpPunctRule, NspFunparRule, NspInparenRule,
@@ -40,30 +42,4 @@ pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
 pub trait Rule {
     fn name() -> &'static str;
     fn description() -> &'static str;
-}
-
-pub mod tests {
-
-use crate::lint::tests::create_ast_from_snippet;
-use crate::lint::begin_style_check;
-use crate::lint::rules::CurrentRules;
-use crate::analysis::LocalDMLError;
-use crate::vfs::Error;
-
-pub fn run_linter(source_code: &str, rules: &CurrentRules)
-    -> Result<Vec<LocalDMLError>, Error>
-{
-    print!("\nSnippet to test on:\n{}\n", source_code);
-    let ast = create_ast_from_snippet(source_code);
-    print!("Resulting AST:\n{:#?}\n", ast);
-    begin_style_check(ast, source_code.to_string(), rules)
-}
-
-pub fn assert_snippet(source_code: &str, expected_errors: usize, rules: &CurrentRules) {
-    let lint_errors = run_linter(source_code, rules);
-    assert!(lint_errors.is_ok());
-    assert_eq!(lint_errors.clone().unwrap().len(), expected_errors,
-               "{:#?}", lint_errors);
-}
-
 }
