@@ -1,4 +1,10 @@
 #[cfg(test)]
+pub mod indentation;
+
+#[cfg(test)]
+pub mod common;
+
+#[cfg(test)]
 pub mod indentation_tests {
 
 use crate::lint::LintCfg;

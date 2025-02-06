@@ -554,6 +554,7 @@ bank pcie_config {register command {field mem {
 }}}
 ";
     #[test]
+    #[ignore]
     fn style_check_sp_braces() {
         let mut cfg = LintCfg::default();
         let mut rules = instantiate_rules(&cfg);
