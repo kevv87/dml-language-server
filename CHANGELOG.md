@@ -4,6 +4,9 @@
 -->
 # Change Log
 
+## 0.9.9
+- Added "warning" as a valid log statement type.
+
 ## 0.9.8
 - Correct behavior of DFA "-t" flag
 
