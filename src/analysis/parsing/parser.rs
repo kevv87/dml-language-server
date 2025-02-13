@@ -369,8 +369,14 @@ impl <'a> FileParser<'a> {
                     self.advance();
                 },
                 TokenKind::Whitespace => {
-                    // TODO: this might not work correctly with tabs
-                    self.current_column += self.lexer.slice().len() as u32;
+                    let slice = self.lexer.slice();
+                    for ch in slice.chars() {
+                        if ch == '\t' {
+                            self.current_column += 4;
+                        } else {
+                            self.current_column += 1;
+                        }
+                    }
                     self.advance();
                 },
                 TokenKind::MultilineComment => {
