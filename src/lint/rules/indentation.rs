@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use super::Rule;
 
 pub const MAX_LENGTH_DEFAULT: u32 = 80;
-pub const INDENTATION_LEVEL_DEFAULT: u32 = 4;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LongLineOptions {
@@ -29,7 +28,7 @@ impl LongLinesRule {
                 enabled: true,
                 max_length: long_lines.max_length,
             },
-            None => LongLinesRule { 
+            None => LongLinesRule {
                 enabled: false,
                 max_length: MAX_LENGTH_DEFAULT,
             },
@@ -182,7 +181,7 @@ impl ContinuationLineRule {
             },
             None => ContinuationLineRule {
                 enabled: false,
-                indentation_spaces: INDENTATION_LEVEL_DEFAULT,
+                indentation_spaces: 0,
             },
         }
     }
@@ -203,7 +202,7 @@ impl ContinuationLineRule {
             &logical_operators[..],
             &bitwise_operators[..],
         ];
-    
+
         for (i, line) in lines.iter().enumerate() {
             if let Some(last_char) = line.trim().chars().last() {
                 if operators.iter().any(|ops| ops.contains(&last_char.to_string().as_str())) {
@@ -322,5 +321,76 @@ impl Rule for IN9Rule {
     fn description() -> &'static str {
         "Case labels are indented one level less than surrounding lines, \
          so that they are on the same level as the switch statement"
+    }
+}
+
+// IN10: Indentation in empty loop
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct IN10Options {
+    pub indentation_spaces: u32,
+}
+
+pub struct IN10Rule {
+    pub enabled: bool,
+    indentation_spaces: u32
+}
+
+impl IN10Rule {
+    pub fn from_options(options: &Option<IN10Options>) -> IN10Rule {
+        match options {
+            Some(options) => IN10Rule {
+                enabled: true,
+                indentation_spaces: options.indentation_spaces,
+            },
+            None => IN10Rule {
+                enabled: false,
+                indentation_spaces: 0,
+            },
+        }
+    }
+
+    pub fn check(&self, acc: &mut Vec<LocalDMLError>, lines: &[&str]) {
+        if !self.enabled {
+            return;
+        }
+
+        for (i, line) in lines.iter().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            if line.trim().starts_with("for") || line.trim().starts_with("while") {
+                let indentation = line.chars().take_while(|c| c.is_whitespace()).count();
+                if let Some(next_line) = lines.get(i + 1) {
+                    let next_line_trimmed = next_line.trim();
+                    if next_line_trimmed == ";" {
+                        let next_line_indentation = next_line.chars().take_while(|c| c.is_whitespace()).count();
+                        if next_line_indentation != indentation + self.indentation_spaces as usize {
+                            let msg = IN10Rule::description().to_owned();
+                            let dmlerror = LocalDMLError {
+                                range: Range::new(
+                                    Row::new_zero_indexed((i + 1) as u32),
+                                    Row::new_zero_indexed((i + 1) as u32),
+                                    Column::new_zero_indexed(0),
+                                    Column::new_zero_indexed(next_line.len() as u32)
+                                ),
+                                description: msg,
+                            };
+                            acc.push(dmlerror);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Rule for IN10Rule {
+    fn name() -> &'static str {
+        "IN10_INDENTATION_EMPTY_LOOP"
+    }
+
+    fn description() -> &'static str {
+        "When the body of a while or for loop is left empty, \
+        indent the semicolon to the appropriate statement level"
     }
 }
