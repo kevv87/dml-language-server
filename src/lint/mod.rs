@@ -14,8 +14,7 @@ use crate::analysis::parsing::tree::TreeElement;
 use crate::file_management::CanonPath;
 use crate::vfs::{Error, TextFile};
 use crate::analysis::parsing::structure::TopAst;
-use crate::lint::rules::indentation::{MAX_LENGTH_DEFAULT,
-                                      INDENTATION_LEVEL_DEFAULT};
+use crate::lint::rules::indentation::MAX_LENGTH_DEFAULT;
 
 pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
     debug!("Reading Lint configuration from {:?}", path);
@@ -60,10 +59,13 @@ pub struct LintCfg {
     pub continuation_line: Option<ContinuationLineOptions>,
     #[serde(default)]
     pub in9: Option<IN9Options>,
+    #[serde(default)]
+    pub in1_common_indentation: Option<u32>,
 }
 
 impl Default for LintCfg {
     fn default() -> LintCfg {
+        let in1_common_indentation = Some(4);
         LintCfg {
             sp_brace: Some(SpBraceOptions{}),
             sp_punct: Some(SpPunctOptions{}),
@@ -74,11 +76,10 @@ impl Default for LintCfg {
             long_lines: Some(LongLineOptions {
                 max_length: MAX_LENGTH_DEFAULT,
                             }),
-            in3: Some(IN3Options{indentation_spaces: 4}),
-            continuation_line: Some(ContinuationLineOptions {
-                indentation_spaces: INDENTATION_LEVEL_DEFAULT,
-            }),
-            in9: Some(IN9Options{indentation_spaces: 4}),
+            in3: Some(IN3Options::new(in1_common_indentation)),
+            continuation_line: Some(ContinuationLineOptions::new(in1_common_indentation)),
+            in9: Some(IN9Options::new(in1_common_indentation)),
+            in1_common_indentation,
         }
     }
 }
@@ -121,7 +122,7 @@ impl LinterAnalysis {
 
 pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Result<Vec<LocalDMLError>, Error> {
     let mut linting_errors: Vec<LocalDMLError> = vec![];
-    ast.style_check(&mut linting_errors, rules, AuxParams { depth: 0 });      
+    ast.style_check(&mut linting_errors, rules, AuxParams { depth: 0 });
 
     // Per line checks
     let lines: Vec<&str> = file.lines().collect();
@@ -152,7 +153,7 @@ pub mod tests {
     dml 1.4;
 
     bank sb_cr {
-        group monitor {    
+        group monitor {
 
             register MKTME_KEYID_MASK {
                 method get() -> (uint64) {
@@ -174,7 +175,7 @@ pub mod tests {
                 }
             }
         }
-    }   
+    }
 
     /*
         This is ONEEEE VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
