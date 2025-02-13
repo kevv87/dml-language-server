@@ -59,6 +59,38 @@ impl Rule for LongLinesRule {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct IN2Options {}
+
+pub struct IN2Rule {
+    pub enabled: bool,
+}
+
+impl IN2Rule {
+    pub fn check(&self, acc: &mut Vec<LocalDMLError>, row: usize, line: &str) {
+        if !self.enabled { return; }
+        let rowu32 = row.try_into().unwrap();
+
+        for (col, _) in line.match_indices('\t') {
+            let colu32 = col.try_into().unwrap();
+            let msg = IN2Rule::description().to_owned();
+            let dmlerror = LocalDMLError {
+                range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, colu32, colu32 + 1),
+                description: msg,
+            };
+            acc.push(dmlerror);
+        }
+    }
+}
+impl Rule for IN2Rule {
+    fn name() -> &'static str {
+        "IN2"
+    }
+    fn description() -> &'static str {
+        "Tab characters (ASCII 9) should never be used to indent lines."
+    }
+}
+
 pub struct IN3Rule {
     pub enabled: bool,
     indentation_spaces: u32

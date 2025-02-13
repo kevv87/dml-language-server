@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IN3Options,
+                      indentation::{LongLineOptions, IN2Options, IN3Options,
                                     IN9Options, ContinuationLineOptions},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
@@ -55,6 +55,8 @@ pub struct LintCfg {
     #[serde(default)]
     pub long_lines: Option<LongLineOptions>,
     #[serde(default)]
+    pub in2: Option<IN2Options>,
+    #[serde(default)]
     pub in3: Option<IN3Options>,
     #[serde(default)]
     pub continuation_line: Option<ContinuationLineOptions>,
@@ -74,6 +76,7 @@ impl Default for LintCfg {
             long_lines: Some(LongLineOptions {
                 max_length: MAX_LENGTH_DEFAULT,
                             }),
+            in2: Some(IN2Options{}),
             in3: Some(IN3Options{indentation_spaces: 4}),
             continuation_line: Some(ContinuationLineOptions {
                 indentation_spaces: INDENTATION_LEVEL_DEFAULT,
@@ -126,6 +129,7 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
     // Per line checks
     let lines: Vec<&str> = file.lines().collect();
     for (row, line) in lines.iter().enumerate() {
+        rules.in2.check(&mut linting_errors, row, line);
         rules.long_lines.check(&mut linting_errors, row, line);
         rules.nsp_trailing.check(&mut linting_errors, row, line);
     }
