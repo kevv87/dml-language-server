@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use super::Rule;
 
 pub const MAX_LENGTH_DEFAULT: u32 = 80;
-pub const INDENTATION_LEVEL_DEFAULT: u32 = 4;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LongLineOptions {
@@ -29,7 +28,7 @@ impl LongLinesRule {
                 enabled: true,
                 max_length: long_lines.max_length,
             },
-            None => LongLinesRule { 
+            None => LongLinesRule {
                 enabled: false,
                 max_length: MAX_LENGTH_DEFAULT,
             },
@@ -68,6 +67,15 @@ pub struct IN3Rule {
 pub struct IN3Options {
     pub indentation_spaces: u32,
 }
+
+impl IN3Options {
+    pub fn new(in1_common_indentation: Option<u32>) -> Self {
+        IN3Options {
+            indentation_spaces: in1_common_indentation.unwrap(),
+        }
+    }
+}
+
 pub struct IN3Args<'a> {
     members_ranges: Vec<ZeroRange>,
     lbrace: ZeroRange,
@@ -168,6 +176,14 @@ pub struct ContinuationLineOptions {
     pub indentation_spaces: u32,
 }
 
+impl ContinuationLineOptions {
+    pub fn new(in1_common_indentation: Option<u32>) -> Self {
+        ContinuationLineOptions {
+            indentation_spaces: in1_common_indentation.unwrap(),
+        }
+    }
+}
+
 pub struct ContinuationLineRule {
     pub enabled: bool,
     pub indentation_spaces: u32,
@@ -182,7 +198,7 @@ impl ContinuationLineRule {
             },
             None => ContinuationLineRule {
                 enabled: false,
-                indentation_spaces: INDENTATION_LEVEL_DEFAULT,
+                indentation_spaces: 0,
             },
         }
     }
@@ -203,7 +219,7 @@ impl ContinuationLineRule {
             &logical_operators[..],
             &bitwise_operators[..],
         ];
-    
+
         for (i, line) in lines.iter().enumerate() {
             if let Some(last_char) = line.trim().chars().last() {
                 if operators.iter().any(|ops| ops.contains(&last_char.to_string().as_str())) {
@@ -250,6 +266,15 @@ pub struct IN9Rule {
 pub struct IN9Options {
     pub indentation_spaces: u32,
 }
+
+impl IN9Options {
+    pub fn new(in1_common_indentation: Option<u32>) -> Self {
+        IN9Options {
+            indentation_spaces: in1_common_indentation.unwrap(),
+        }
+    }
+}
+
 pub struct IN9Args<'a> {
     case_range: ZeroRange,
     expected_depth: &'a mut u32,
