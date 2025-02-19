@@ -12,3 +12,5 @@ Below are listed the currently supported rules for linting:
 
 ## Line Length
 - **LL1**: Lines should be kept shorter than 80 characters. Longer lines wrap or become partially invisible in editors whose windows have the standard width of 80 columns, which makes the code much harder to read
+
+##### Check [Issue #76 For remaining and planned checks](https://github.com/intel/dml-language-server/issues/76)
