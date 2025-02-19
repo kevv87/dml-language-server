@@ -11,6 +11,6 @@ Below are listed the currently supported rules for linting:
 - **NSP.TrailingWhitespace**: no spaces between the last token in a line and the corresponding newline `\n`
 
 ## Line Length
-- **LL1**: Lines should be kept shorter than 80 characters. Longer lines wrap or become partially invisible in editors whose windows have the standard width of 80 columns, which makes the code much harder to read
+- **LL1**: Lines should be kept shorter than 80 characters. Longer lines wrap or become partially invisible in editors whose windows have the standard width of 80 columns, which makes the code much harder to read. This rule's 80 character limit can be set to custom values for editors where this is appropriate
 
 ##### Check [Issue #76 For remaining and planned checks](https://github.com/intel/dml-language-server/issues/76)
