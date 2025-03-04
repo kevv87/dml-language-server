@@ -3,12 +3,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
-use rules::{instantiate_rules, CurrentRules};
+use rules::indentation::IN2Rule;
+use rules::{Rule, instantiate_rules, CurrentRules};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IN3Options,
-                                    IN9Options, ContinuationLineOptions},
-                    };
+            indentation::{LongLineOptions, IN2Options, IN3Options,
+                          IN9Options, ContinuationLineOptions},
+            };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
 use crate::file_management::CanonPath;
@@ -55,6 +56,8 @@ pub struct LintCfg {
     #[serde(default)]
     pub long_lines: Option<LongLineOptions>,
     #[serde(default)]
+    pub in2: Option<IN2Options>,
+    #[serde(default)]
     pub in3: Option<IN3Options>,
     #[serde(default)]
     pub continuation_line: Option<ContinuationLineOptions>,
@@ -74,6 +77,7 @@ impl Default for LintCfg {
             long_lines: Some(LongLineOptions {
                 max_length: MAX_LENGTH_DEFAULT,
                             }),
+            in2: Some(IN2Options{}),
             in3: Some(IN3Options{indentation_spaces: 4}),
             continuation_line: Some(ContinuationLineOptions {
                 indentation_spaces: INDENTATION_LEVEL_DEFAULT,
@@ -126,6 +130,7 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
     // Per line checks
     let lines: Vec<&str> = file.lines().collect();
     for (row, line) in lines.iter().enumerate() {
+        rules.in2.check(&mut linting_errors, row, line);
         rules.long_lines.check(&mut linting_errors, row, line);
         rules.nsp_trailing.check(&mut linting_errors, row, line);
     }
@@ -133,7 +138,24 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
     // Continuation line check
     rules.continuation_line.check(&mut linting_errors, &lines);
 
+    post_process_linting_errors(&mut linting_errors);
+
     Ok(linting_errors)
+}
+
+fn post_process_linting_errors(errors: &mut Vec<LocalDMLError>) {
+    // Collect in2 ranges
+    let in2_ranges: Vec<_> = errors.iter()
+        .filter(|error| error.description == IN2Rule::description())
+        .map(|error| error.range)
+        .collect();
+
+    // Remove linting errors that are in in2 rows
+    errors.retain(|error| {
+        !in2_ranges.iter().any(|range|
+            (range.row_start == error.range.row_start || range.row_end == error.range.row_end)
+            && error.description != IN2Rule::description())
+    });
 }
 
 #[derive(Copy, Clone)]
