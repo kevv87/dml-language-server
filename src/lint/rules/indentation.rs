@@ -12,6 +12,10 @@ use super::Rule;
 pub const MAX_LENGTH_DEFAULT: u32 = 80;
 pub const INDENTATION_LEVEL_DEFAULT: u32 = 4;
 
+fn default_indentation_spaces() -> u32 {
+    INDENTATION_LEVEL_DEFAULT
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LongLineOptions {
     pub max_length: u32,
@@ -29,7 +33,7 @@ impl LongLinesRule {
                 enabled: true,
                 max_length: long_lines.max_length,
             },
-            None => LongLinesRule { 
+            None => LongLinesRule {
                 enabled: false,
                 max_length: MAX_LENGTH_DEFAULT,
             },
@@ -59,6 +63,11 @@ impl Rule for LongLinesRule {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct IN1Options {
+    pub indentation_spaces: u32,
+}
+
 pub struct IN3Rule {
     pub enabled: bool,
     indentation_spaces: u32
@@ -66,8 +75,10 @@ pub struct IN3Rule {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IN3Options {
+    #[serde(default = "default_indentation_spaces")]
     pub indentation_spaces: u32,
 }
+
 pub struct IN3Args<'a> {
     members_ranges: Vec<ZeroRange>,
     lbrace: ZeroRange,
@@ -164,25 +175,26 @@ impl Rule for IN3Rule {
 
 // IN6: Continuation Line
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct ContinuationLineOptions {
+pub struct IN6Options {
+    #[serde(default = "default_indentation_spaces")]
     pub indentation_spaces: u32,
 }
 
-pub struct ContinuationLineRule {
+pub struct IN6Rule {
     pub enabled: bool,
     pub indentation_spaces: u32,
 }
 
-impl ContinuationLineRule {
-    pub fn from_options(options: &Option<ContinuationLineOptions>) -> ContinuationLineRule {
+impl IN6Rule {
+    pub fn from_options(options: &Option<IN6Options>) -> IN6Rule {
         match options {
-            Some(continuation_line) => ContinuationLineRule {
+            Some(in6) => IN6Rule {
                 enabled: true,
-                indentation_spaces: continuation_line.indentation_spaces,
+                indentation_spaces: in6.indentation_spaces,
             },
-            None => ContinuationLineRule {
+            None => IN6Rule {
                 enabled: false,
-                indentation_spaces: INDENTATION_LEVEL_DEFAULT,
+                indentation_spaces: 0,
             },
         }
     }
@@ -203,7 +215,7 @@ impl ContinuationLineRule {
             &logical_operators[..],
             &bitwise_operators[..],
         ];
-    
+
         for (i, line) in lines.iter().enumerate() {
             if let Some(last_char) = line.trim().chars().last() {
                 if operators.iter().any(|ops| ops.contains(&last_char.to_string().as_str())) {
@@ -212,7 +224,7 @@ impl ContinuationLineRule {
                         let expected_indent = line.chars().take_while(|c| c.is_whitespace()).count() + self.indentation_spaces as usize;
                         let actual_indent = next_line.chars().take_while(|c| c.is_whitespace()).count();
                         if actual_indent != expected_indent {
-                            let msg = ContinuationLineRule::description().to_owned();
+                            let msg = IN6Rule::description().to_owned();
                             let dmlerror = LocalDMLError {
                                 range: Range::new(
                                     Row::new_zero_indexed((i + 1) as u32),
@@ -231,13 +243,13 @@ impl ContinuationLineRule {
     }
 }
 
-impl Rule for ContinuationLineRule {
+impl Rule for IN6Rule {
     fn name() -> &'static str {
-        "CONTINUATION_LINE"
+        "IN6_CONTINUATION_LINE"
     }
 
     fn description() -> &'static str {
-        "Continuation line not indented correctly"
+        "Continuation line not indented correctly."
     }
 }
 
@@ -248,8 +260,10 @@ pub struct IN9Rule {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IN9Options {
+    #[serde(default = "default_indentation_spaces")]
     pub indentation_spaces: u32,
 }
+
 pub struct IN9Args<'a> {
     case_range: ZeroRange,
     expected_depth: &'a mut u32,
