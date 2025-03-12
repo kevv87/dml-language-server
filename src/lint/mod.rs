@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IN3Options,
+                      indentation::{LongLineOptions, IN3Options, IN4Options,
                                     IN9Options, ContinuationLineOptions},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
@@ -57,6 +57,8 @@ pub struct LintCfg {
     #[serde(default)]
     pub in3: Option<IN3Options>,
     #[serde(default)]
+    pub in4: Option<IN4Options>,
+    #[serde(default)]
     pub continuation_line: Option<ContinuationLineOptions>,
     #[serde(default)]
     pub in9: Option<IN9Options>,
@@ -78,6 +80,7 @@ impl Default for LintCfg {
             continuation_line: Some(ContinuationLineOptions {
                 indentation_spaces: INDENTATION_LEVEL_DEFAULT,
             }),
+            in4: Some(IN4Options{}),
             in9: Some(IN9Options{indentation_spaces: 4}),
         }
     }
