@@ -917,6 +917,11 @@ impl TreeElement for SwitchHashIf {
                      &self.rbrace,
                      &self.hashelse)
     }
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>,
+                      rules: &CurrentRules, _aux: &mut AuxParams)
+    {
+        rules.in4.check(acc, IN4Args::from_switch_hash_if(self));
+    }
 }
 
 fn parse_switchhashif(context: &ParseContext, stream: &mut FileParser<'_>, file_info: &FileInfo)
@@ -1086,6 +1091,11 @@ impl TreeElement for SwitchContent {
                      &self.lbrace,
                      &self.cases,
                      &self.rbrace)
+    }
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>,
+                      rules: &CurrentRules, _aux: &mut AuxParams)
+    {
+        rules.in4.check(acc, IN4Args::from_switch_content(self));
     }
 }
 
