@@ -34,7 +34,7 @@ pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
         nsp_trailing: NspTrailingRule { enabled: cfg.nsp_trailing.is_some() },
         long_lines: LongLinesRule::from_options(&cfg.long_lines),
         in3: IN3Rule::from_options(&cfg.in3),
-        in4: IN4Rule { enabled: cfg.in4.is_some() },
+        in4: IN4Rule::from_options(&cfg.in4),
         continuation_line: ContinuationLineRule::from_options(&cfg.continuation_line),
         in9: IN9Rule::from_options(&cfg.in9),
     }

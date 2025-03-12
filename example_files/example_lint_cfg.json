@@ -9,5 +9,5 @@
     "in3": { "indentation_spaces": 4 },
     "continuation_line": { "indentation_spaces": 4 },
     "in9": { "indentation_spaces": 4 },
-    "in4": {}
+    "in4": { "indentation_spaces": 4 }
 }

@@ -80,7 +80,7 @@ impl Default for LintCfg {
             continuation_line: Some(ContinuationLineOptions {
                 indentation_spaces: INDENTATION_LEVEL_DEFAULT,
             }),
-            in4: Some(IN4Options{}),
+            in4: Some(IN4Options{indentation_spaces: 4}),
             in9: Some(IN9Options{indentation_spaces: 4}),
         }
     }
