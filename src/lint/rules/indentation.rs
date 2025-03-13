@@ -1,8 +1,10 @@
 use std::convert::TryInto;
 
-use crate::analysis::parsing::{statement::{self, CompoundContent, SwitchCase},
+use crate::analysis::parsing::{statement::{self, CompoundContent, SwitchCase,
+                                           SwitchContent, SwitchHashIf},
                                structure::ObjectStatementsContent,
-                               types::{LayoutContent, StructTypeContent}};
+                               types::{LayoutContent, StructTypeContent,
+                                       BitfieldsContent}};
 use crate::span::{Range, ZeroIndexed, Row, Column};
 use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
@@ -188,6 +190,134 @@ impl Rule for IN3Rule {
         "Previous line contains an openning brace and current line is not one\
          level of indentation ahead of past line"
     }
+}
+
+pub struct IN4Rule {
+    pub enabled: bool,
+    pub indentation_spaces: u32,
+}
+
+impl IN4Rule {
+    fn signal_error(&self, acc: &mut Vec<LocalDMLError>, range: ZeroRange) {
+        let dmlerror = LocalDMLError {
+            range: range,
+            description: Self::description().to_string(),
+        };
+        acc.push(dmlerror);
+    }
+
+    pub fn from_options(options: &Option<IN4Options>) -> IN4Rule {
+        match options {
+            Some(options) => IN4Rule {
+                enabled: true,
+                indentation_spaces: options.indentation_spaces,
+            },
+            None => IN4Rule {
+                enabled: false,
+                indentation_spaces: 0,
+            },
+        }
+    }
+
+    pub fn check(&self, acc: &mut Vec<LocalDMLError>, args: Option<IN4Args>) {
+        if !self.enabled { return; }
+        let Some(args) = args else { return; };
+
+        let lbrace_on_same_row_than_rbrace:bool = args.lbrace.row_start
+            == args.rbrace.row_start;
+        if lbrace_on_same_row_than_rbrace { return; }
+
+        let last_member_on_same_row_than_rbrace:bool = args.last_member.row_start
+            == args.rbrace.row_start;
+        if last_member_on_same_row_than_rbrace {
+            return self.signal_error(acc, args.rbrace);
+        }
+
+        let rbrace_indented_more_than_last_member:bool= args.rbrace.col_start.0
+            > args.last_member.col_start.0;
+        if rbrace_indented_more_than_last_member {
+            return self.signal_error(acc, args.rbrace);
+        }
+
+        let rbrace_unindented_exactly_one_level:bool = args.last_member.col_start.0
+            - args.rbrace.col_start.0 == self.indentation_spaces;
+        if !rbrace_unindented_exactly_one_level {
+            return self.signal_error(acc, args.rbrace);
+        }
+    }
+}
+
+impl Rule for IN4Rule {
+    fn name() -> &'static str {
+        "IN4"
+    }
+    fn description() -> &'static str {
+        "An closing brace at the beginning of a line is indented one level \
+         less than the previous line. A closing brace should only ever appear\
+         on the same line as the opening brace or first on a line."
+    }
+}
+
+pub struct IN4Args {
+    lbrace: ZeroRange,
+    last_member: ZeroRange,
+    rbrace: ZeroRange
+}
+
+impl IN4Args {
+    pub fn from_compound_content(node: &CompoundContent) -> Option<IN4Args> {
+        Some(IN4Args {
+            lbrace: node.lbrace.range(),
+            last_member: node.statements.last()?.range(),
+            rbrace: node.rbrace.range()
+        })
+    }
+
+    pub fn from_switch_content(node: &SwitchContent) -> Option<IN4Args> {
+        Some(IN4Args {
+            lbrace: node.lbrace.range(),
+            last_member: node.cases.last()?.range(),
+            rbrace: node.rbrace.range()
+        })
+    }
+
+    pub fn from_switch_hash_if(node: &SwitchHashIf) -> Option<IN4Args> {
+        Some(IN4Args {
+            lbrace: node.lbrace.range(),
+            last_member: node.truecases.last()?.range(),
+            rbrace: node.rbrace.range()
+        })
+    }
+
+    pub fn from_struct_type_content(node: &StructTypeContent) -> Option<IN4Args> {
+        Some(IN4Args {
+            lbrace: node.lbrace.range(),
+            last_member: node.members.last()?.range(),
+            rbrace: node.rbrace.range()
+        })
+    }
+
+    pub fn from_layout_content(node: &LayoutContent) -> Option<IN4Args> {
+        Some(IN4Args {
+            lbrace: node.lbrace.range(),
+            last_member: node.fields.last()?.range(),
+            rbrace: node.rbrace.range()
+        })
+    }
+
+    pub fn from_bitfields_content(node: &BitfieldsContent) -> Option<IN4Args> {
+        Some(IN4Args {
+            lbrace: node.lbrace.range(),
+            last_member: node.fields.last()?.range(),
+            rbrace: node.rbrace.range()
+        })
+    }
+
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct IN4Options {
+    pub indentation_spaces: u32,
 }
 
 // IN6: Continuation Line
