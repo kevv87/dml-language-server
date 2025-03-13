@@ -23,6 +23,7 @@ use crate::lint::{rules::{spacing::{NspFunparArgs,
                                     SpPunctArgs},
                                     CurrentRules},
                                     AuxParams};
+use crate::lint::rules::indentation::{IN5Rule, IN5Args};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnaryExpressionContent {
@@ -213,6 +214,7 @@ impl TreeElement for FunctionCallContent {
         rules.nsp_funpar.check(acc, NspFunparArgs::from_function_call(self));
         rules.nsp_inparen.check(acc, NspInparenArgs::from_function_call(self));
         rules.sp_punct.check(acc, SpPunctArgs::from_function_call(self));
+        rules.in5.check(acc, IN5Args::from_function_call(self));
     }
 }
 

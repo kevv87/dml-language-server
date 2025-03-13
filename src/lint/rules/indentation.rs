@@ -2,7 +2,8 @@ use std::convert::TryInto;
 
 use crate::analysis::parsing::{statement::{self, CompoundContent, SwitchCase},
                                structure::ObjectStatementsContent,
-                               types::{LayoutContent, StructTypeContent}};
+                               types::{LayoutContent, StructTypeContent},
+                               expression::{FunctionCallContent}};
 use crate::span::{Range, ZeroIndexed, Row, Column};
 use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
@@ -159,6 +160,59 @@ impl Rule for IN3Rule {
     fn description() -> &'static str {
         "Previous line contains an openning brace and current line is not one\
          level of indentation ahead of past line"
+    }
+}
+
+pub struct IN5Rule {
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct IN5Options {}
+
+pub struct IN5Args {
+    members_ranges: Vec<ZeroRange>,
+    lparen: ZeroRange,
+}
+
+impl IN5Args{
+    pub fn from_function_call(node: &FunctionCallContent) -> Option<IN5Args> {
+        Some(IN5Args {
+            members_ranges: node.arguments.iter().map(|m| m.range()).collect(),
+            lparen: node.lparen.range(),
+        })
+    }
+}
+
+impl IN5Rule {
+    pub fn check<'a> (&self, acc: &mut Vec<LocalDMLError>,
+        args: Option<IN5Args>) {
+        if !self.enabled { return; }
+        let Some(args) = args else { return; };
+        let expected_line_start = args.lparen.col_start.0 + 1;
+        let mut last_row = args.lparen.row_start.0;
+        for member_range in args.members_ranges {
+            if member_range.row_start.0 != last_row {
+                last_row = member_range.row_start.0;
+                if member_range.col_start.0 != expected_line_start {
+                    let dmlerror = LocalDMLError {
+                        range: member_range,
+                        description: Self::description().to_string(),
+                    };
+                    acc.push(dmlerror);
+                }
+            }
+        }
+    }
+}
+
+impl Rule for IN5Rule {
+    fn name() -> &'static str {
+        "IN5"
+    }
+    fn description() -> &'static str {
+        "Continuation line broken inside a prenthesized expression not\
+         indented to line up with the corresponding parenthesis."
     }
 }
 
