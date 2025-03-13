@@ -15,7 +15,9 @@ use crate::file_management::CanonPath;
 use crate::vfs::{Error, TextFile};
 use crate::analysis::parsing::structure::TopAst;
 use crate::lint::rules::indentation::{MAX_LENGTH_DEFAULT,
-                                      INDENTATION_LEVEL_DEFAULT};
+                                      INDENTATION_LEVEL_DEFAULT,
+                                      setup_indentation_size
+                                    };
 
 pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
     debug!("Reading Lint configuration from {:?}", path);
@@ -29,20 +31,7 @@ pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
 pub fn maybe_parse_lint_cfg(path: PathBuf) -> Option<LintCfg> {
     match parse_lint_cfg(path) {
         Ok(mut cfg) => {
-            let mut indentation_spaces = INDENTATION_LEVEL_DEFAULT;
-
-            if let Some(in1) = &cfg.in1 {
-                indentation_spaces = in1.indentation_spaces;
-            }
-            if let Some(in3) = &mut cfg.in3 {
-                in3.indentation_spaces = indentation_spaces;
-            }
-            if let Some(in6) = &mut cfg.in6 {
-                in6.indentation_spaces = indentation_spaces;
-            }
-            if let Some(in9) = &mut cfg.in9 {
-                in9.indentation_spaces = indentation_spaces;
-            }
+            setup_indentation_size(&mut cfg);
             Some(cfg)
         },
         Err(e) => {

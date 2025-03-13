@@ -8,6 +8,7 @@ use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
 use serde::{Deserialize, Serialize};
 use super::Rule;
+use crate::lint::LintCfg;
 
 pub const MAX_LENGTH_DEFAULT: u32 = 80;
 pub const INDENTATION_LEVEL_DEFAULT: u32 = 4;
@@ -16,6 +17,22 @@ fn default_indentation_spaces() -> u32 {
     INDENTATION_LEVEL_DEFAULT
 }
 
+pub fn setup_indentation_size(cfg: &mut LintCfg) {
+    let mut indentation_spaces = INDENTATION_LEVEL_DEFAULT;
+
+    if let Some(in1) = &cfg.in1 {
+        indentation_spaces = in1.indentation_spaces;
+    }
+    if let Some(in3) = &mut cfg.in3 {
+        in3.indentation_spaces = indentation_spaces;
+    }
+    if let Some(in6) = &mut cfg.in6 {
+        in6.indentation_spaces = indentation_spaces;
+    }
+    if let Some(in9) = &mut cfg.in9 {
+        in9.indentation_spaces = indentation_spaces;
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LongLineOptions {
     pub max_length: u32,
