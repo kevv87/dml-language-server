@@ -7,7 +7,7 @@ use rules::{instantiate_rules, CurrentRules};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
                       indentation::{LongLineOptions, IN1Options, IN3Options,
-                                    IN9Options, IN6Options},
+                                    IN6Options, IN9Options, IN10Options},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
@@ -67,6 +67,8 @@ pub struct LintCfg {
     pub in6: Option<IN6Options>,
     #[serde(default)]
     pub in9: Option<IN9Options>,
+    #[serde(default)]
+    pub in10: Option<IN10Options>,
 }
 
 impl Default for LintCfg {
@@ -83,6 +85,7 @@ impl Default for LintCfg {
             in3: Some(IN3Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
             in6: Some(IN6Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
             in9: Some(IN9Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            in10: Some(IN10Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
         }
     }
 }
@@ -125,7 +128,7 @@ impl LinterAnalysis {
 
 pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Result<Vec<LocalDMLError>, Error> {
     let mut linting_errors: Vec<LocalDMLError> = vec![];
-    ast.style_check(&mut linting_errors, rules, AuxParams { depth: 0 });      
+    ast.style_check(&mut linting_errors, rules, AuxParams { depth: 0 });
 
     // Per line checks
     let lines: Vec<&str> = file.lines().collect();
@@ -136,6 +139,9 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
 
     // Continuation line check
     rules.in6.check(&mut linting_errors, &lines);
+
+    // IN10 (indentation in empty loop) check
+    rules.in10.check(&mut linting_errors, &lines);
 
     Ok(linting_errors)
 }
@@ -156,7 +162,7 @@ pub mod tests {
     dml 1.4;
 
     bank sb_cr {
-        group monitor {    
+        group monitor {
 
             register MKTME_KEYID_MASK {
                 method get() -> (uint64) {
@@ -178,7 +184,7 @@ pub mod tests {
                 }
             }
         }
-    }   
+    }
 
     /*
         This is ONEEEE VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
