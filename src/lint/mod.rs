@@ -6,16 +6,18 @@ use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IN3Options,
-                                    IN9Options, ContinuationLineOptions,
-                                    IN10Options},
+                      indentation::{LongLineOptions, IN1Options, IN3Options,
+                                    IN6Options, IN9Options, IN10Options},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
 use crate::file_management::CanonPath;
 use crate::vfs::{Error, TextFile};
 use crate::analysis::parsing::structure::TopAst;
-use crate::lint::rules::indentation::MAX_LENGTH_DEFAULT;
+use crate::lint::rules::indentation::{MAX_LENGTH_DEFAULT,
+                                      INDENTATION_LEVEL_DEFAULT,
+                                      setup_indentation_size
+                                    };
 
 pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
     debug!("Reading Lint configuration from {:?}", path);
@@ -28,7 +30,10 @@ pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
 
 pub fn maybe_parse_lint_cfg(path: PathBuf) -> Option<LintCfg> {
     match parse_lint_cfg(path) {
-        Ok(cfg) => Some(cfg),
+        Ok(mut cfg) => {
+            setup_indentation_size(&mut cfg);
+            Some(cfg)
+        },
         Err(e) => {
             error!("Failed to parse linting CFG: {}", e);
             None
@@ -55,9 +60,11 @@ pub struct LintCfg {
     #[serde(default)]
     pub long_lines: Option<LongLineOptions>,
     #[serde(default)]
+    pub in1: Option<IN1Options>,
+    #[serde(default)]
     pub in3: Option<IN3Options>,
     #[serde(default)]
-    pub continuation_line: Option<ContinuationLineOptions>,
+    pub in6: Option<IN6Options>,
     #[serde(default)]
     pub in9: Option<IN9Options>,
     #[serde(default)]
@@ -73,15 +80,12 @@ impl Default for LintCfg {
             nsp_inparen: Some(NspInparenOptions{}),
             nsp_unary: Some(NspUnaryOptions{}),
             nsp_trailing: Some(NspTrailingOptions{}),
-            long_lines: Some(LongLineOptions {
-                max_length: MAX_LENGTH_DEFAULT,
-                            }),
-            in3: Some(IN3Options{indentation_spaces: 4}),
-            continuation_line: Some(ContinuationLineOptions {
-                indentation_spaces: 4
-            }),
-            in9: Some(IN9Options{indentation_spaces: 4}),
-            in10: Some(IN10Options{indentation_spaces: 4}),
+            long_lines: Some(LongLineOptions{max_length: MAX_LENGTH_DEFAULT}),
+            in1: Some(IN1Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            in3: Some(IN3Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            in6: Some(IN6Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            in9: Some(IN9Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            in10: Some(IN10Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
         }
     }
 }
@@ -134,7 +138,7 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
     }
 
     // Continuation line check
-    rules.continuation_line.check(&mut linting_errors, &lines);
+    rules.in6.check(&mut linting_errors, &lines);
 
     // IN10 (indentation in empty loop) check
     rules.in10.check(&mut linting_errors, &lines);
