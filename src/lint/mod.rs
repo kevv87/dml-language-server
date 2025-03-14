@@ -3,8 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
-use rules::indentation::IN2Rule;
-use rules::{Rule, instantiate_rules, CurrentRules, RuleType};
+use rules::{instantiate_rules, CurrentRules, RuleType};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
                       indentation::{LongLineOptions, IN1Options, IN3Options,
