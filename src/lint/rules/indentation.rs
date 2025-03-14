@@ -8,7 +8,7 @@ use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
 use serde::{Deserialize, Serialize};
 use super::Rule;
-use crate::lint::{LintCfg, DMLStyleError};
+use crate::lint::{LintCfg, DMLStyleError, RuleType};
 
 pub const MAX_LENGTH_DEFAULT: u32 = 80;
 pub const INDENTATION_LEVEL_DEFAULT: u32 = 4;
@@ -68,7 +68,7 @@ impl LongLinesRule {
                     range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, self.max_length, len),
                     description: msg,
                 },
-                rule_name: Self::name().to_string(),
+                rule_type: Self::get_rule_type(),
             };
             acc.push(dmlerror);
         }
@@ -80,6 +80,9 @@ impl Rule for LongLinesRule {
     }
     fn description() -> &'static str {
         "Line length is above the threshold"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::LongLines
     }
 }
 
@@ -108,7 +111,7 @@ impl IN2Rule {
                     range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, colu32, colu32 + 1),
                     description: msg,
                 },
-                rule_name: Self::name().to_string(),
+                rule_type: Self::get_rule_type(),
             };
             acc.push(dmlerror);
         }
@@ -120,6 +123,9 @@ impl Rule for IN2Rule {
     }
     fn description() -> &'static str {
         "Tab characters (ASCII 9) should never be used to indent lines."
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::IN2
     }
 }
 
@@ -208,7 +214,7 @@ impl IN3Rule {
                         range: member_range,
                         description: Self::description().to_string(),
                     },
-                    rule_name: Self::name().to_string(),
+                    rule_type: Self::get_rule_type(),
                 };
                 acc.push(dmlerror);
             }
@@ -228,6 +234,9 @@ impl Rule for IN3Rule {
     fn description() -> &'static str {
         "Previous line contains an openning brace and current line is not one\
          level of indentation ahead of past line"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::IN3
     }
 }
 
@@ -293,7 +302,7 @@ impl IN6Rule {
                                     ),
                                     description: msg,
                                 },
-                                rule_name: Self::name().to_string(),
+                                rule_type: Self::get_rule_type(),
                             };
                             acc.push(dmlerror);
                         }
@@ -311,6 +320,9 @@ impl Rule for IN6Rule {
 
     fn description() -> &'static str {
         "Continuation line not indented correctly."
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::IN6
     }
 }
 
@@ -380,7 +392,7 @@ impl IN9Rule {
                     range: args.case_range,
                     description: Self::description().to_string(),
                 },
-                rule_name: Self::name().to_string(),
+                rule_type: Self::get_rule_type(),
             };
             acc.push(dmlerror);
         }
@@ -400,5 +412,8 @@ impl Rule for IN9Rule {
     fn description() -> &'static str {
         "Case labels are indented one level less than surrounding lines, \
          so that they are on the same level as the switch statement"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::IN9
     }
 }

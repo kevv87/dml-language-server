@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use serde::{Deserialize, Serialize};
 use crate::analysis::parsing::types::{BitfieldsContent, LayoutContent,
                                       StructTypeContent};
-use crate::lint::{rules::Rule,
+use crate::lint::{rules::{Rule, RuleType},
                   DMLStyleError};
 use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{TreeElement, ZeroRange};
@@ -109,7 +109,7 @@ impl SpBracesRule {
                         range: location.lbrace,
                         description: Self::description().to_string(),
                     },
-                    rule_name: Self::name().to_string(),
+                    rule_type: Self::get_rule_type(),
                 };
                 acc.push(dmlerror);
             }
@@ -120,7 +120,7 @@ impl SpBracesRule {
                         range: location.rbrace,
                         description: Self::description().to_string(),
                     },
-                    rule_name: Self::name().to_string(),
+                    rule_type: Self::get_rule_type(),
                 };
                 acc.push(dmlerror);
             }
@@ -134,6 +134,9 @@ impl Rule for SpBracesRule {
     }
     fn description() -> &'static str {
         "Missing space around brace"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::SpBraces
     }
 }
 
@@ -256,7 +259,7 @@ impl SpPunctRule {
                             range: error_range,
                             description: Self::description().to_string(),
                         },
-                        rule_name: Self::name().to_string(),
+                        rule_type: Self::get_rule_type(),
                     };
                     acc.push(dmlerror);
                 }
@@ -274,7 +277,7 @@ impl SpPunctRule {
                             range: error_range,
                             description: Self::description().to_string(),
                         },
-                        rule_name: Self::name().to_string(),
+                        rule_type: Self::get_rule_type(),
                     };
                     acc.push(dmlerror);
                 }
@@ -289,6 +292,9 @@ impl Rule for SpPunctRule {
     }
     fn description() -> &'static str {
         "Missing space after punctuation mark"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::SpPunct
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -331,7 +337,7 @@ impl NspFunparRule {
                     range: gap,
                     description: Self::description().to_string(),
                 },
-                rule_name: Self::name().to_string(),
+                rule_type: Self::get_rule_type(),
             };
             acc.push(dmlerror);
         }
@@ -343,6 +349,9 @@ impl Rule for NspFunparRule {
     }
     fn description() -> &'static str {
         "There should be no space between a method/function name and its opening parenthesis."
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::NspFunpar
     }
 }
 
@@ -428,7 +437,7 @@ impl NspInparenRule {
                         range: gap,
                         description: Self::description().to_string(),
                     },
-                    rule_name: Self::name().to_string(),
+                    rule_type: Self::get_rule_type(),
                 };
                 acc.push(dmlerror);
             }
@@ -442,7 +451,7 @@ impl NspInparenRule {
                         range: gap,
                         description: Self::description().to_string(),
                     },
-                    rule_name: Self::name().to_string(),
+                    rule_type: Self::get_rule_type(),
                 };
                 acc.push(dmlerror);
             }
@@ -455,6 +464,9 @@ impl Rule for NspInparenRule {
     }
     fn description() -> &'static str {
         "There should be no space after opening or before closing () / []"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::NspInparen
     }
 }
 
@@ -497,7 +509,7 @@ impl NspUnaryRule {
                     range: gap,
                     description: Self::description().to_string(),
                 },
-                rule_name: Self::name().to_string(),
+                rule_type: Self::get_rule_type(),
             };
             acc.push(dmlerror);
         }
@@ -509,6 +521,9 @@ impl Rule for NspUnaryRule {
     }
     fn description() -> &'static str {
         "There should be no space between unary operator and its operand"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::NspUnary
     }
 }
 
@@ -533,7 +548,7 @@ impl NspTrailingRule {
                                                         len),
                     description: Self::description().to_string(),
                 },
-                rule_name: Self::name().to_string(),
+                rule_type: Self::get_rule_type(),
             };
             acc.push(dmlerror);
         }
@@ -545,5 +560,8 @@ impl Rule for NspTrailingRule {
     }
     fn description() -> &'static str {
         "Found trailing whitespace on row"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::NspTrailing
     }
 }

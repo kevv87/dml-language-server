@@ -44,4 +44,20 @@ pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
 pub trait Rule {
     fn name() -> &'static str;
     fn description() -> &'static str;
+    fn get_rule_type() -> RuleType;
+}
+
+#[derive(PartialEq)]
+pub enum RuleType {
+    SpBraces,
+    SpPunct,
+    NspFunpar,
+    NspInparen,
+    NspUnary,
+    NspTrailing,
+    LongLines,
+    IN2,
+    IN3,
+    IN6,
+    IN9
 }
