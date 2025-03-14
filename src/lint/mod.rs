@@ -91,6 +91,11 @@ impl Default for LintCfg {
     }
 }
 
+pub struct DMLStyleError {
+    pub error: LocalDMLError,
+    pub rule_name: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct LinterAnalysis {
     pub path: CanonPath,
@@ -128,7 +133,7 @@ impl LinterAnalysis {
 }
 
 pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Result<Vec<LocalDMLError>, Error> {
-    let mut linting_errors: Vec<LocalDMLError> = vec![];
+    let mut linting_errors: Vec<DMLStyleError> = vec![];
     ast.style_check(&mut linting_errors, rules, AuxParams { depth: 0 });      
 
     // Per line checks
@@ -144,21 +149,21 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
 
     post_process_linting_errors(&mut linting_errors);
 
-    Ok(linting_errors)
+    Ok(linting_errors.into_iter().map(|e| e.error).collect())
 }
 
-fn post_process_linting_errors(errors: &mut Vec<LocalDMLError>) {
+fn post_process_linting_errors(errors: &mut Vec<DMLStyleError>) {
     // Collect in2 ranges
     let in2_ranges: Vec<_> = errors.iter()
-        .filter(|error| error.description == IN2Rule::description())
-        .map(|error| error.range)
+        .filter(|style_err| style_err.rule_name == IN2Rule::name())
+        .map(|style_err| style_err.error.range)
         .collect();
 
     // Remove linting errors that are in in2 rows
-    errors.retain(|error| {
+    errors.retain(|style_err| {
         !in2_ranges.iter().any(|range|
-            (range.row_start == error.range.row_start || range.row_end == error.range.row_end)
-            && error.description != IN2Rule::description())
+            (range.row_start == style_err.error.range.row_start || range.row_end == style_err.error.range.row_end)
+            && style_err.rule_name != IN2Rule::name())
     });
 }
 

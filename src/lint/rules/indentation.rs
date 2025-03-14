@@ -8,7 +8,7 @@ use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
 use serde::{Deserialize, Serialize};
 use super::Rule;
-use crate::lint::LintCfg;
+use crate::lint::{LintCfg, DMLStyleError};
 
 pub const MAX_LENGTH_DEFAULT: u32 = 80;
 pub const INDENTATION_LEVEL_DEFAULT: u32 = 4;
@@ -56,16 +56,19 @@ impl LongLinesRule {
             },
         }
     }
-    pub fn check(&self, acc: &mut Vec<LocalDMLError>, row: usize, line: &str) {
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>, row: usize, line: &str) {
         if !self.enabled { return; }
         let len = line.len().try_into().unwrap();
         if len > self.max_length {
             let rowu32 = row.try_into().unwrap();
             let msg = LongLinesRule::description().to_owned()
                 + format!(" of {} characters", self.max_length).as_str();
-            let dmlerror = LocalDMLError {
-                range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, self.max_length, len),
-                description: msg,
+            let dmlerror = DMLStyleError {
+                error: LocalDMLError {
+                    range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, self.max_length, len),
+                    description: msg,
+                },
+                rule_name: Self::name().to_string(),
             };
             acc.push(dmlerror);
         }
@@ -93,16 +96,19 @@ pub struct IN2Rule {
 }
 
 impl IN2Rule {
-    pub fn check(&self, acc: &mut Vec<LocalDMLError>, row: usize, line: &str) {
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>, row: usize, line: &str) {
         if !self.enabled { return; }
         let rowu32 = row.try_into().unwrap();
 
         for (col, _) in line.match_indices('\t') {
             let colu32 = col.try_into().unwrap();
             let msg = IN2Rule::description().to_owned();
-            let dmlerror = LocalDMLError {
-                range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, colu32, colu32 + 1),
-                description: msg,
+            let dmlerror = DMLStyleError {
+                error: LocalDMLError {
+                    range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, colu32, colu32 + 1),
+                    description: msg,
+                },
+                rule_name: Self::name().to_string(),
             };
             acc.push(dmlerror);
         }
@@ -187,7 +193,7 @@ impl IN3Rule {
             }
         }
     }
-    pub fn check<'a>(&self, acc: &mut Vec<LocalDMLError>,
+    pub fn check<'a>(&self, acc: &mut Vec<DMLStyleError>,
         args: Option<IN3Args<'a>>)
     {
         if !self.enabled { return; }
@@ -197,9 +203,12 @@ impl IN3Rule {
         *args.expected_depth += 1;
         for member_range in args.members_ranges {
             if self.indentation_is_not_aligned(member_range, *args.expected_depth) {
-                let dmlerror = LocalDMLError {
-                    range: member_range,
-                    description: Self::description().to_string(),
+                let dmlerror = DMLStyleError {
+                    error: LocalDMLError {
+                        range: member_range,
+                        description: Self::description().to_string(),
+                    },
+                    rule_name: Self::name().to_string(),
                 };
                 acc.push(dmlerror);
             }
@@ -248,7 +257,7 @@ impl IN6Rule {
         }
     }
 
-    pub fn check(&self, acc: &mut Vec<LocalDMLError>, lines: &[&str]) {
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>, lines: &[&str]) {
         if !self.enabled {
             return;
         }
@@ -274,14 +283,17 @@ impl IN6Rule {
                         let actual_indent = next_line.chars().take_while(|c| c.is_whitespace()).count();
                         if actual_indent != expected_indent {
                             let msg = IN6Rule::description().to_owned();
-                            let dmlerror = LocalDMLError {
-                                range: Range::new(
-                                    Row::new_zero_indexed((i + 1) as u32),
-                                    Row::new_zero_indexed((i + 1) as u32),
-                                    Column::new_zero_indexed(0),
-                                    Column::new_zero_indexed(next_line.len() as u32)
-                                ),
-                                description: msg,
+                            let dmlerror = DMLStyleError {
+                                error: LocalDMLError {
+                                    range: Range::new(
+                                        Row::new_zero_indexed((i + 1) as u32),
+                                        Row::new_zero_indexed((i + 1) as u32),
+                                        Column::new_zero_indexed(0),
+                                        Column::new_zero_indexed(next_line.len() as u32)
+                                    ),
+                                    description: msg,
+                                },
+                                rule_name: Self::name().to_string(),
                             };
                             acc.push(dmlerror);
                         }
@@ -357,15 +369,18 @@ impl IN9Rule {
             }
         }
     }
-    pub fn check<'a>(&self, acc: &mut Vec<LocalDMLError>,
+    pub fn check<'a>(&self, acc: &mut Vec<DMLStyleError>,
         args: Option<IN9Args<'a>>)
     {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
         if self.indentation_is_not_aligned(args.case_range, *args.expected_depth) {
-            let dmlerror = LocalDMLError {
-                range: args.case_range,
-                description: Self::description().to_string(),
+            let dmlerror = DMLStyleError {
+                error: LocalDMLError {
+                    range: args.case_range,
+                    description: Self::description().to_string(),
+                },
+                rule_name: Self::name().to_string(),
             };
             acc.push(dmlerror);
         }
