@@ -3,7 +3,8 @@ use std::convert::TryInto;
 use crate::analysis::parsing::{statement::{self, CompoundContent, SwitchCase},
                                structure::ObjectStatementsContent,
                                types::{LayoutContent, StructTypeContent},
-                               expression::{FunctionCallContent}};
+                               expression::{FunctionCallContent,
+                                            ParenExpressionContent}};
 use crate::span::{Range, ZeroIndexed, Row, Column};
 use crate::analysis::LocalDMLError;
 use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
@@ -182,6 +183,15 @@ impl IN5Args{
             lparen: node.lparen.range(),
         })
     }
+
+    pub fn from_paren_expression(node: &ParenExpressionContent)
+            -> Option<IN5Args> {
+        print!("Get IN5Args from paren_expression");
+        Some(IN5Args {
+            members_ranges: node.expr.subs().into_iter().map(|m| m.range()).collect(),
+            lparen: node.lparen.range(),
+        })
+    }
 }
 
 impl IN5Rule {
@@ -191,10 +201,14 @@ impl IN5Rule {
         let Some(args) = args else { return; };
         let expected_line_start = args.lparen.col_start.0 + 1;
         let mut last_row = args.lparen.row_start.0;
+        print!("Expected line start (lparen+1): {} \n", expected_line_start);
         for member_range in args.members_ranges {
+            print!("Range row_start: {0} row_end: {1} col_start: {2} col_end: {3} \n", member_range.row_start.0, member_range.row_end.0, member_range.col_start.0, member_range.col_end.0);
             if member_range.row_start.0 != last_row {
+                print!("New row\n");
                 last_row = member_range.row_start.0;
                 if member_range.col_start.0 != expected_line_start {
+                    print!("Fail\n");
                     let dmlerror = LocalDMLError {
                         range: member_range,
                         description: Self::description().to_string(),
@@ -203,6 +217,7 @@ impl IN5Rule {
                 }
             }
         }
+        print!("End\n");
     }
 }
 

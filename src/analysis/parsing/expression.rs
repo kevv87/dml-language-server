@@ -89,6 +89,7 @@ impl TreeElement for BinaryExpressionContent {
         Range::combine(self.left.range(), self.right.range())
     }
     fn subs(&self) -> TreeElements<'_> {
+        print!("Binary Expression Content Subs\n");
         create_subs!(&self.left, &self.operation, &self.right)
     }
 }
@@ -165,6 +166,10 @@ impl TreeElement for ParenExpressionContent {
     }
     fn subs(&self) -> TreeElements<'_> {
         create_subs!(&self.lparen, &self.expr, &self.rparen)
+    }
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _aux: &mut AuxParams) {
+        rules.in5.check(acc, IN5Args::from_paren_expression(self));
+        print!("After evaluating rules for parenexpressioncontent");
     }
 }
 
@@ -719,6 +724,7 @@ impl TreeElement for ExpressionContent {
         }
     }
     fn subs(&self) -> TreeElements<'_> {
+        print!("ExpressionContent Subs\n");
         match self {
             Self::Identifier(token) => create_subs![token],
             Self::Literal(token) => create_subs![token],
