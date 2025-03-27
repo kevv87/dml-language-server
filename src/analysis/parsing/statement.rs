@@ -22,7 +22,7 @@ use crate::analysis::parsing::misc::{Initializer, InitializerContent, CDecl,
 use crate::analysis::parsing::structure::{parse_vardecl, VarDecl};
 use crate::analysis::LocalDMLError;
 use crate::lint::{rules::{CurrentRules,
-                         indentation::{IN3Args, IN9Args},
+                         indentation::{IN3Args, IN5Args, IN9Args},
                          spacing::{NspInparenArgs,
                                    SpBracesArgs,
                                    SpPunctArgs}},
@@ -538,6 +538,9 @@ impl TreeElement for WhileContent {
                      &self.cond,
                      &self.rparen,
                      &self.statement)
+    }
+    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _aux: &mut AuxParams) {
+        rules.in5.check(acc, IN5Args::from_while(self));
     }
 }
 

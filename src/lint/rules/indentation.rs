@@ -1,7 +1,11 @@
 use std::convert::TryInto;
 
-use crate::analysis::parsing::{statement::{self, CompoundContent, SwitchCase},
-                               structure::ObjectStatementsContent,
+use crate::analysis::parsing::{statement::{self,
+                                           CompoundContent,
+                                           SwitchCase,
+                                           WhileContent},
+                               structure::{ObjectStatementsContent,
+                                           MethodContent},
                                types::{LayoutContent, StructTypeContent},
                                expression::{FunctionCallContent,
                                             ParenExpressionContent}};
@@ -188,13 +192,28 @@ impl IN5Args{
             -> Option<IN5Args> {
         print!("Get IN5Args from paren_expression");
         Some(IN5Args {
-            members_ranges: node.expr.subs().into_iter().map(|m| m.range()).collect(),
+            members_ranges: node.expr.subs()[0].subs()[0].subs().into_iter().map(|m| m.range()).collect(),
+            lparen: node.lparen.range(),
+        })
+    }
+
+    pub fn from_method(node: &MethodContent) -> Option<IN5Args> {
+        Some(IN5Args {
+            members_ranges: node.arguments.iter().map(|m| m.range()).collect(),
+            lparen: node.lparen.range(),
+        })
+    }
+
+    pub fn from_while(node: &WhileContent) -> Option<IN5Args> {
+        Some(IN5Args {
+            members_ranges: node.cond.subs()[0].subs()[0].subs().into_iter().map(|m| m.range()).collect(),
             lparen: node.lparen.range(),
         })
     }
 }
 
 impl IN5Rule {
+
     pub fn check<'a> (&self, acc: &mut Vec<LocalDMLError>,
         args: Option<IN5Args>) {
         if !self.enabled { return; }

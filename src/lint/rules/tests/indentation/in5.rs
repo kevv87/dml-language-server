@@ -61,7 +61,7 @@ method callback() {
 
 pub static IN5_WHILE_PAREN_OK: &str = "
 method callback() {
-    while (conditionX 
+    while (conditionX
            || conditionY) {
         update_conditions();
     }
@@ -70,7 +70,7 @@ method callback() {
 pub static IN5_WHILE_PAREN_ERR: &str = "
 method callback() {
     while (initial
-        + offset 
+        + offset
            <= size) {
         offset++;
     }
@@ -170,10 +170,10 @@ fn in5_lineup_inside_parenthesized_expressions() {
     let rules = set_up();
 
     assert_snippet(IN5_OPERATION_PAREN_OK, 0, &rules);
-    assert_snippet(IN5_OPERATION_PAREN_ERR, 1, &rules);
+    assert_snippet(IN5_OPERATION_PAREN_ERR, 2, &rules);
 
     assert_snippet(IN5_METHODARGS_PAREN_OK, 0, &rules);
-    assert_snippet(IN5_METHODARGS_PAREN_ERR, 2, &rules);
+    assert_snippet(IN5_METHODARGS_PAREN_ERR, 1, &rules);
 
     assert_snippet(IN5_FUNCALL_PAREN_OK, 0, &rules);
     assert_snippet(IN5_FUNCALL_PAREN_ERR, 2, &rules);
