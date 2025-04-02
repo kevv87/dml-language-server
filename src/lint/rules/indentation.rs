@@ -1,17 +1,12 @@
 use std::convert::TryInto;
 
-use crate::analysis::parsing::{statement::{self,
+use crate::analysis::parsing::{expression::{ExpressionContent, FunctionCallContent, ParenExpressionContent}, statement::{self,
                                            CompoundContent,
                                            SwitchCase,
-                                           WhileContent},
-                               structure::{ObjectStatementsContent,
-                                           MethodContent},
-                               types::{LayoutContent, StructTypeContent},
-                               expression::{FunctionCallContent,
-                                            ParenExpressionContent}};
+                                           WhileContent}, structure::{MethodContent, ObjectStatementsContent}, types::{LayoutContent, StructTypeContent}};
 use crate::span::{Range, ZeroIndexed, Row, Column};
 use crate::analysis::LocalDMLError;
-use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement};
+use crate::analysis::parsing::tree::{ZeroRange, Content, TreeElement, TreeElementMember};
 use serde::{Deserialize, Serialize};
 use super::Rule;
 
@@ -175,37 +170,51 @@ pub struct IN5Rule {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IN5Options {}
 
-pub struct IN5Args {
+pub struct IN5Args<'a>{
+    members_subs: Vec<&'a dyn TreeElementMember>,
     members_ranges: Vec<ZeroRange>,
     lparen: ZeroRange,
 }
 
-impl IN5Args{
-    pub fn from_function_call(node: &FunctionCallContent) -> Option<IN5Args> {
+impl IN5Args<'_>{
+    pub fn flatten_subs(element: &dyn TreeElementMember) -> Vec<ZeroRange>{
+        let mut vec = Vec::new();
+
+        if element.range().row_start.0 == element.range().row_end.0 {
+            return vec![element.range()];
+        }
+        return vec;
+    }
+
+    pub fn from_function_call(node: &FunctionCallContent) -> Option<IN5Args<'_>> {
         Some(IN5Args {
+            members_subs: node.arguments.subs(),
             members_ranges: node.arguments.iter().map(|m| m.range()).collect(),
             lparen: node.lparen.range(),
         })
     }
 
     pub fn from_paren_expression(node: &ParenExpressionContent)
-            -> Option<IN5Args> {
+            -> Option<IN5Args<'_>> {
         print!("Get IN5Args from paren_expression");
         Some(IN5Args {
+            members_subs: node.expr.subs(),
             members_ranges: node.expr.subs()[0].subs()[0].subs().into_iter().map(|m| m.range()).collect(),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_method(node: &MethodContent) -> Option<IN5Args> {
+    pub fn from_method(node: &MethodContent) -> Option<IN5Args<'_>> {
         Some(IN5Args {
+            members_subs: node.arguments.subs(),
             members_ranges: node.arguments.iter().map(|m| m.range()).collect(),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_while(node: &WhileContent) -> Option<IN5Args> {
+    pub fn from_while(node: &WhileContent) -> Option<IN5Args<'_>> {
         Some(IN5Args {
+            members_subs: node.cond.subs(),
             members_ranges: node.cond.subs()[0].subs()[0].subs().into_iter().map(|m| m.range()).collect(),
             lparen: node.lparen.range(),
         })
@@ -213,13 +222,47 @@ impl IN5Args{
 }
 
 impl IN5Rule {
+    pub fn is_aligned(line: u32, element: &dyn TreeElementMember) -> bool {
+        let mut aligned = true;
+        let subs = element.subs();
+        if subs.len() > 0 {
+            let mut last_row = subs[0].range().row_start.0;
+            for sub in subs {
+                if sub.range().row_start.0 != last_row {
+                    last_row = sub.range().row_start.0;
+                    if sub.range().col_start.0 != line {
+                        let col_start = sub.range().col_start.0;
+                        return false;
+                    }
+                }
+                if sub.range().row_start.0 != sub.range().row_end.0 {
+                    aligned = aligned && IN5Rule::is_aligned(line, sub);
+                }
+            }
+        }
+        else {
+            return element.range().col_start.0 == line;
+        }
+        return aligned;
+    }
 
     pub fn check<'a> (&self, acc: &mut Vec<LocalDMLError>,
-        args: Option<IN5Args>) {
+        args: Option<IN5Args<'_>>) {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
         let expected_line_start = args.lparen.col_start.0 + 1;
-        let mut last_row = args.lparen.row_start.0;
+        for member in args.members_subs.into_iter(){
+            let is_aligned = IN5Rule::is_aligned(expected_line_start, member);
+            if is_aligned {
+                let dmlerror = LocalDMLError {
+                    range: member.range(),
+                    description: Self::description().to_string(),
+                };
+                acc.push(dmlerror);
+            }
+        }
+        
+        /*let mut last_row = args.lparen.row_start.0;
         print!("Expected line start (lparen+1): {} \n", expected_line_start);
         for member_range in args.members_ranges {
             print!("Range row_start: {0} row_end: {1} col_start: {2} col_end: {3} \n", member_range.row_start.0, member_range.row_end.0, member_range.col_start.0, member_range.col_end.0);
@@ -236,7 +279,7 @@ impl IN5Rule {
                 }
             }
         }
-        print!("End\n");
+        print!("End\n");*/
     }
 }
 

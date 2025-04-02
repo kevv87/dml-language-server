@@ -23,7 +23,7 @@ use crate::lint::{rules::{spacing::{NspFunparArgs,
                                     SpPunctArgs},
                                     CurrentRules},
                                     AuxParams};
-use crate::lint::rules::indentation::{IN5Rule, IN5Args};
+use crate::lint::rules::indentation::{IN5Args};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnaryExpressionContent {
