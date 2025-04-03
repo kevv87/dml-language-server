@@ -170,7 +170,6 @@ impl TreeElement for ParenExpressionContent {
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
         rules.in5.check(acc, IN5Args::from_paren_expression(self));
-        print!("After evaluating rules for parenexpressioncontent");
     }
 }
 
