@@ -1,12 +1,12 @@
 use crate::lint::rules::tests::common::{set_up, assert_snippet};
 
-pub static IN9_CORRECT_CASE_INDENT: &str = "
+static SWITCH_CASE_INDENT_CORRECT: &str = "
 method some_switch(int arg) {
     switch(arg) {
     case ZERO:
-#if (asdd == 0) {
+    #if (asdd == 0) {
         some_call();
-}
+    }
         if (a) {
             return;
         }
@@ -16,31 +16,34 @@ method some_switch(int arg) {
     }
 }
 ";
+#[test]
+// #[ignore]
+fn switch_case_indent_correct() {
+    let rules = set_up();
+    assert_snippet(SWITCH_CASE_INDENT_CORRECT, 0, &rules);
+}
 
-pub static IN9_INCORRECT_CASE_INDENT: &str = "
+static SWITCH_CASE_INDENT_INCORRECT: &str = "
 method some_switch(int arg) {
     switch(arg) {
       case ZERO:
-#if (asdd == 0) {
-          some_call();
-}
+        #if (asdd == 0) {
+        some_call();
+        }
           if (a) {
             return;
         }
         some_call();
-        break;
+      break;
     case ONE: {
-          return;
+        return;
     }
     default: { return; }
     }
 }
 ";
-
 #[test]
-// #[ignore]
-fn in9_correct_case_indent() {
+fn switch_case_indent_incorrect() {
     let rules = set_up();
-    assert_snippet(IN9_CORRECT_CASE_INDENT, 0, &rules);
-    assert_snippet(IN9_INCORRECT_CASE_INDENT, 4, &rules);
+    assert_snippet(SWITCH_CASE_INDENT_INCORRECT, 3, &rules);
 }

@@ -1,9 +1,10 @@
 //  © 2024 Intel Corporation
 //  SPDX-License-Identifier: Apache-2.0 and MIT
-use crate::lint::{rules::{indentation::IN3Args,
+use crate::lint::{rules::{indentation::{IN3Args, IN4Args},
                             spacing::SpBracesArgs,
                             CurrentRules},
-                            AuxParams};
+                            AuxParams,
+                            DMLStyleError};
 use crate::span::Range;
 use crate::analysis::parsing::lexer::TokenKind;
 use crate::analysis::parsing::parser::{doesnt_understand_tokens,
@@ -13,7 +14,8 @@ use crate::analysis::parsing::tree::{AstObject, TreeElement, TreeElements,
                             LeafToken, ZeroRange};
 use crate::analysis::parsing::misc::{CDecl, ident_filter};
 use crate::analysis::parsing::expression::Expression;
-use crate::analysis::LocalDMLError;
+use crate::analysis::reference::{Reference, ReferenceKind};
+use crate::analysis::{FileSpec, LocalDMLError};
 use crate::vfs::TextFile;
 
 pub fn typeident_filter(token: TokenKind) -> bool {
@@ -52,9 +54,13 @@ impl TreeElement for StructTypeContent {
         }
         errors
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, aux: &mut AuxParams) {
-        rules.in3.check(acc, IN3Args::from_struct_type_content(self, &mut aux.depth));
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
+        rules.in3.check(acc, IN3Args::from_struct_type_content(self, aux.depth));
+        rules.in4.check(acc, IN4Args::from_struct_type_content(self, aux.depth));
         rules.sp_brace.check(acc, SpBracesArgs::from_struct_type_content(self));
+    }
+    fn should_increment_depth(&self) -> bool {
+        true
     }
 }
 
@@ -131,9 +137,13 @@ impl TreeElement for LayoutContent {
         }
         errors
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, aux: &mut AuxParams) {
-        rules.in3.check(acc, IN3Args::from_layout_content(self, &mut aux.depth));
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
+        rules.in3.check(acc, IN3Args::from_layout_content(self, aux.depth));
+        rules.in4.check(acc, IN4Args::from_layout_content(self, aux.depth));
         rules.sp_brace.check(acc, SpBracesArgs::from_layout_content(self));
+    }
+    fn should_increment_depth(&self) -> bool {
+        true
     }
 }
 
@@ -304,8 +314,13 @@ impl TreeElement for BitfieldsContent {
         }
         errors
     }
-    fn evaluate_rules(&self, acc: &mut Vec<LocalDMLError>, rules: &CurrentRules, _aux: &mut AuxParams) {
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.sp_brace.check(acc, SpBracesArgs::from_bitfields_content(self));
+        rules.in3.check(acc, IN3Args::from_bitfields_content(self, aux.depth));
+        rules.in4.check(acc, IN4Args::from_bitfields_content(self, aux.depth));
+    }
+    fn should_increment_depth(&self) -> bool {
+        true
     }
 }
 
@@ -471,6 +486,18 @@ pub enum BaseTypeContent {
 }
 
 impl TreeElement for BaseTypeContent {
+    fn references<'a>(&self,
+                      accumulator: &mut Vec<Reference>,
+                      file: FileSpec<'a>) {
+        self.default_references(accumulator, file);
+        if let BaseTypeContent::Ident(leaf) = self {
+            if let Some(refr) = Reference::global_from_token(
+                leaf, file, ReferenceKind::Type) {
+                accumulator.push(refr);
+            }
+        }
+    }
+
     fn range(&self) -> ZeroRange {
         match self {
             Self::Ident(content) => content.range(),
