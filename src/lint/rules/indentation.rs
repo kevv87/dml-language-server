@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use crate::analysis::parsing::{expression::{CastContent, ExpressionContent, FunctionCallContent, ParenExpressionContent},
+use crate::analysis::parsing::{expression::{CastContent, FunctionCallContent, ParenExpressionContent},
                                lexer::TokenKind,
                                statement::{self, CompoundContent, DoContent, ForContent, ForeachContent,
                                            IfContent, SwitchCase, SwitchContent, WhileContent},
@@ -417,6 +417,28 @@ impl IN5Args {
         token_ranges
     }
 
+    pub fn from_for(node: &ForContent) -> Option<IN5Args> {
+        // For loop has three parts within parentheses: pre, cond, and post
+        let mut filtered_member_ranges: Vec<ZeroRange> = vec![];
+        filtered_member_ranges.append(&mut Self::filter_out_parenthesized_ranges(node.pre.tokens()));
+        filtered_member_ranges.push(node.lsemi.range());
+        filtered_member_ranges.append(&mut Self::filter_out_parenthesized_ranges(node.cond.tokens()));
+        filtered_member_ranges.push(node.rsemi.range());
+        filtered_member_ranges.append(&mut Self::filter_out_parenthesized_ranges(node.post.tokens()));
+
+        Some(IN5Args {
+            members_ranges: filtered_member_ranges,
+            lparen: node.lparen.range(),
+        })
+    }
+
+    pub fn from_foreach(node: &ForeachContent) -> Option<IN5Args> {
+        Some(IN5Args {
+            members_ranges: Self::filter_out_parenthesized_ranges(node.expression.tokens()),
+            lparen: node.lparen.range(),
+        })
+    }
+
     pub fn from_function_call(node: &FunctionCallContent) -> Option<IN5Args> {
         let mut filtered_member_ranges: Vec<ZeroRange> = vec![];
         for (arg, _comma) in node.arguments.iter() {
@@ -450,6 +472,36 @@ impl IN5Args {
     pub fn from_while(node: &WhileContent) -> Option<IN5Args> {
         Some(IN5Args {
             members_ranges: Self::filter_out_parenthesized_ranges(node.cond.tokens()),
+            lparen: node.lparen.range(),
+        })
+    }
+
+    pub fn from_do_while(node: &DoContent) -> Option<IN5Args> {
+        Some(IN5Args {
+            members_ranges: Self::filter_out_parenthesized_ranges(node.cond.tokens()),
+            lparen: node.lparen.range(),
+        })
+    }
+
+    pub fn from_if(node: &IfContent) -> Option<IN5Args>  {
+        Some(IN5Args {
+            members_ranges: Self::filter_out_parenthesized_ranges(node.cond.tokens()),
+            lparen: node.lparen.range(),
+        })
+    }
+
+    pub fn from_cast(node: &CastContent) -> Option<IN5Args> {
+        let mut cast_member_tokens = node.from.tokens();
+        cast_member_tokens.append(&mut node.to.tokens());
+        Some(IN5Args {
+            members_ranges: Self::filter_out_parenthesized_ranges(cast_member_tokens),
+            lparen: node.lparen.range(),
+        })
+    }
+
+    pub fn from_switch(node: &SwitchContent) -> Option<IN5Args> {
+        Some(IN5Args {
+            members_ranges: Self::filter_out_parenthesized_ranges(node.expr.tokens()),
             lparen: node.lparen.range(),
         })
     }

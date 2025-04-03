@@ -436,6 +436,7 @@ impl TreeElement for IfContent {
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
         rules.nsp_inparen.check(acc, NspInparenArgs::from_if(self));
+        rules.in5.check(acc, IN5Args::from_if(self));
     }
 }
 
@@ -596,6 +597,9 @@ impl TreeElement for DoContent {
                      &self.cond,
                      &self.rparen,
                      &self.semi)
+    }
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
+        rules.in5.check(acc, IN5Args::from_do_while(self));
     }
 }
 
@@ -859,6 +863,7 @@ impl TreeElement for ForContent {
                      &self.statement)
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
+        rules.in5.check(acc, IN5Args::from_for(self));
         rules.in10.check(acc, IN10Args::from_for_content(self, aux.depth));
     }
 }
@@ -1109,6 +1114,7 @@ impl TreeElement for SwitchContent {
                       rules: &CurrentRules, aux: AuxParams)
     {
         rules.in4.check(acc, IN4Args::from_switch_content(self, aux.depth));
+        rules.in5.check(acc, IN5Args::from_switch(self));
     }
 }
 
@@ -1602,6 +1608,9 @@ impl TreeElement for ForeachContent {
                      &self.expression,
                      &self.rparen,
                      &self.statement)
+    }
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
+        rules.in5.check(acc, IN5Args::from_foreach(self));
     }
 }
 
