@@ -216,6 +216,7 @@ impl IN3Rule {
     {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
+        if args.members_ranges.is_empty() { return; }
         if args.lbrace.row_start == args.rbrace.row_start ||
             args.lbrace.row_start == args.members_ranges[0].row_start { return; }
         for member_range in args.members_ranges {
