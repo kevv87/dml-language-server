@@ -532,7 +532,7 @@ impl Rule for IN5Rule {
         "IN5"
     }
     fn description() -> &'static str {
-        "Continuation line broken inside a prenthesized expression not\
+        "Continuation line broken inside a parenthesized expression not\
          indented to line up with the corresponding parenthesis."
     }
     fn get_rule_type() -> RuleType {
