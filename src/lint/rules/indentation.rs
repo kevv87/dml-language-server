@@ -24,8 +24,8 @@ fn default_indentation_spaces() -> u32 {
 pub fn setup_indentation_size(cfg: &mut LintCfg) {
     let mut indentation_spaces = INDENTATION_LEVEL_DEFAULT;
 
-    if let Some(in1) = &cfg.in1 {
-        indentation_spaces = in1.indentation_spaces;
+    if let Some(size) = &cfg.indent_size {
+        indentation_spaces = size.indentation_spaces;
     }
     if let Some(in3) = &mut cfg.in3 {
         in3.indentation_spaces = indentation_spaces;
@@ -91,25 +91,25 @@ impl Rule for LongLinesRule {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct IN1Options {
+pub struct IndentSizeOptions {
     pub indentation_spaces: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct IN2Options {}
+pub struct IdentNoTabOptions {}
 
-pub struct IN2Rule {
+pub struct IdentNoTabRule {
     pub enabled: bool,
 }
 
-impl IN2Rule {
+impl IdentNoTabRule {
     pub fn check(&self, acc: &mut Vec<DMLStyleError>, row: usize, line: &str) {
         if !self.enabled { return; }
         let rowu32 = row.try_into().unwrap();
 
         for (col, _) in line.match_indices('\t') {
             let colu32 = col.try_into().unwrap();
-            let msg = IN2Rule::description().to_owned();
+            let msg = IdentNoTabRule::description().to_owned();
             let dmlerror = DMLStyleError {
                 error: LocalDMLError {
                     range: Range::<ZeroIndexed>::from_u32(rowu32, rowu32, colu32, colu32 + 1),
@@ -121,9 +121,9 @@ impl IN2Rule {
         }
     }
 }
-impl Rule for IN2Rule {
+impl Rule for IdentNoTabRule {
     fn name() -> &'static str {
-        "IN2"
+        "INDENT_NO_TABS"
     }
     fn description() -> &'static str {
         "Tab characters (ASCII 9) should never be used to indent lines."

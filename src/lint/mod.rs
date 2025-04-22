@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules, RuleType};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IN1Options, IN3Options,
-                                    IN2Options, IN4Options, IN5Options, IN9Options, IN10Options},
+                      indentation::{LongLineOptions, IndentSizeOptions, IN3Options,
+                                    IdentNoTabOptions, IN4Options, IN5Options, IN9Options, IN10Options},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
@@ -60,9 +60,9 @@ pub struct LintCfg {
     #[serde(default)]
     pub long_lines: Option<LongLineOptions>,
     #[serde(default)]
-    pub in1: Option<IN1Options>,
+    pub indent_size: Option<IndentSizeOptions>,
     #[serde(default)]
-    pub in2: Option<IN2Options>,
+    pub indent_no_tabs: Option<IdentNoTabOptions>,
     #[serde(default)]
     pub in3: Option<IN3Options>,
     #[serde(default)]
@@ -85,8 +85,8 @@ impl Default for LintCfg {
             nsp_unary: Some(NspUnaryOptions{}),
             nsp_trailing: Some(NspTrailingOptions{}),
             long_lines: Some(LongLineOptions{max_length: MAX_LENGTH_DEFAULT}),
-            in1: Some(IN1Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
-            in2: Some(IN2Options{}),
+            indent_size: Some(IndentSizeOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            indent_no_tabs: Some(IdentNoTabOptions{}),
             in3: Some(IN3Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
             in4: Some(IN4Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
             in5: Some(IN5Options{}),
@@ -144,7 +144,7 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
     // Per line checks
     let lines: Vec<&str> = file.lines().collect();
     for (row, line) in lines.iter().enumerate() {
-        rules.in2.check(&mut linting_errors, row, line);
+        rules.indent_no_tabs.check(&mut linting_errors, row, line);
         rules.long_lines.check(&mut linting_errors, row, line);
         rules.nsp_trailing.check(&mut linting_errors, row, line);
     }
@@ -155,15 +155,15 @@ pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Res
 }
 
 fn post_process_linting_errors(errors: &mut Vec<DMLStyleError>) {
-    // Collect in2 ranges
-    let in2_ranges: Vec<_> = errors.iter()
+    // Collect indent_no_tabs ranges
+    let indent_no_tabs_ranges: Vec<_> = errors.iter()
         .filter(|style_err| style_err.rule_type == RuleType::IN2)
         .map(|style_err| style_err.error.range)
         .collect();
 
-    // Remove linting errors that are in in2 rows
+    // Remove linting errors that are in indent_no_tabs rows
     errors.retain(|style_err| {
-        !in2_ranges.iter().any(|range|
+        !indent_no_tabs_ranges.iter().any(|range|
             (range.row_start == style_err.error.range.row_start || range.row_end == style_err.error.range.row_end)
             && style_err.rule_type != RuleType::IN2)
     });

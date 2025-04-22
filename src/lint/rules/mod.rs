@@ -7,7 +7,7 @@ pub mod tests;
 use spacing::{SpBracesRule,
     SpPunctRule, NspFunparRule, NspInparenRule,
     NspUnaryRule, NspTrailingRule};
-use indentation::{LongLinesRule, IN2Rule, IN3Rule, IN4Rule, IN5Rule, IN9Rule, IN10Rule};
+use indentation::{LongLinesRule, IdentNoTabRule, IN3Rule, IN4Rule, IN5Rule, IN9Rule, IN10Rule};
 use crate::lint::{LintCfg, DMLStyleError};
 use crate::analysis::{LocalDMLError, parsing::tree::ZeroRange};
 
@@ -19,7 +19,7 @@ pub struct CurrentRules {
     pub nsp_unary: NspUnaryRule,
     pub nsp_trailing: NspTrailingRule,
     pub long_lines: LongLinesRule,
-    pub in2: IN2Rule,
+    pub indent_no_tabs: IdentNoTabRule,
     pub in3: IN3Rule,
     pub in4: IN4Rule,
     pub in5: IN5Rule,
@@ -36,7 +36,7 @@ pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
         nsp_unary: NspUnaryRule { enabled: cfg.nsp_unary.is_some() },
         nsp_trailing: NspTrailingRule { enabled: cfg.nsp_trailing.is_some() },
         long_lines: LongLinesRule::from_options(&cfg.long_lines),
-        in2: IN2Rule { enabled: cfg.in2.is_some() },
+        indent_no_tabs: IdentNoTabRule { enabled: cfg.indent_no_tabs.is_some() },
         in3: IN3Rule::from_options(&cfg.in3),
         in4: IN4Rule::from_options(&cfg.in4),
         in5: IN5Rule { enabled: cfg.in5.is_some() },
