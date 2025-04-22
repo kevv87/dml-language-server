@@ -25,7 +25,7 @@ use crate::analysis::parsing::structure::{parse_vardecl, VarDecl};
 use crate::analysis::LocalDMLError;
 use crate::lint::{DMLStyleError,
                   rules::{CurrentRules,
-                          indentation::{IndentCodeBlockArgs, IndentClosingBraceArgs, IN5Args, IN9Args},
+                          indentation::{IndentCodeBlockArgs, IndentClosingBraceArgs, IndentParenExprArgs, IN9Args},
                           spacing::{NspInparenArgs,
                                     SpBracesArgs,
                                     SpPunctArgs}},
@@ -436,7 +436,7 @@ impl TreeElement for IfContent {
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
         rules.nsp_inparen.check(acc, NspInparenArgs::from_if(self));
-        rules.in5.check(acc, IN5Args::from_if(self));
+        rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_if(self));
     }
 }
 
@@ -548,7 +548,7 @@ impl TreeElement for WhileContent {
                      &self.statement)
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
-        rules.in5.check(acc, IN5Args::from_while(self));
+        rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_while(self));
         rules.in10.check(acc, IN10Args::from_while_content(self, aux.depth));
     }
 }
@@ -599,7 +599,7 @@ impl TreeElement for DoContent {
                      &self.semi)
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
-        rules.in5.check(acc, IN5Args::from_do_while(self));
+        rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_do_while(self));
     }
 }
 
@@ -863,7 +863,7 @@ impl TreeElement for ForContent {
                      &self.statement)
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
-        rules.in5.check(acc, IN5Args::from_for(self));
+        rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_for(self));
         rules.in10.check(acc, IN10Args::from_for_content(self, aux.depth));
     }
 }
@@ -1114,7 +1114,7 @@ impl TreeElement for SwitchContent {
                       rules: &CurrentRules, aux: AuxParams)
     {
         rules.indent_closing_brace.check(acc, IndentClosingBraceArgs::from_switch_content(self, aux.depth));
-        rules.in5.check(acc, IN5Args::from_switch(self));
+        rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_switch(self));
     }
 }
 
@@ -1610,7 +1610,7 @@ impl TreeElement for ForeachContent {
                      &self.statement)
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
-        rules.in5.check(acc, IN5Args::from_foreach(self));
+        rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_foreach(self));
     }
 }
 

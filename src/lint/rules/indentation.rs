@@ -384,26 +384,26 @@ impl IndentClosingBraceRule {
 }
 
 
-pub struct IN5Rule {
+pub struct IndentParenExprRule {
     pub enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct IN5Options {}
+pub struct IndentParenExprOptions {}
 
-pub struct IN5Args {
+pub struct IndentParenExprArgs {
     members_ranges: Vec<ZeroRange>,
     lparen: ZeroRange,
 }
 
-impl IN5Args {
+impl IndentParenExprArgs {
     fn filter_out_parenthesized_ranges(expression_tokens: TreeElementTokenIterator) -> Vec<ZeroRange> {
         let mut token_ranges: Vec<ZeroRange> = vec![];
         let mut paren_depth = 0;
         // paren_depth is used to identify nested
         // parenthesized expressions within other expressions
         // and avoid double checking this type, given
-        // ParenExpressionContent already checks in5 on its own
+        // ParenExpressionContent already checks indent_paren_expr on its own
         for token in expression_tokens {
             match token.kind {
                 TokenKind::LParen => {
@@ -418,7 +418,7 @@ impl IN5Args {
         token_ranges
     }
 
-    pub fn from_for(node: &ForContent) -> Option<IN5Args> {
+    pub fn from_for(node: &ForContent) -> Option<IndentParenExprArgs> {
         // For loop has three parts within parentheses: pre, cond, and post
         let mut filtered_member_ranges: Vec<ZeroRange> = vec![];
         filtered_member_ranges.append(&mut Self::filter_out_parenthesized_ranges(node.pre.tokens()));
@@ -427,90 +427,90 @@ impl IN5Args {
         filtered_member_ranges.push(node.rsemi.range());
         filtered_member_ranges.append(&mut Self::filter_out_parenthesized_ranges(node.post.tokens()));
 
-        Some(IN5Args {
+        Some(IndentParenExprArgs {
             members_ranges: filtered_member_ranges,
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_foreach(node: &ForeachContent) -> Option<IN5Args> {
-        Some(IN5Args {
+    pub fn from_foreach(node: &ForeachContent) -> Option<IndentParenExprArgs> {
+        Some(IndentParenExprArgs {
             members_ranges: Self::filter_out_parenthesized_ranges(node.expression.tokens()),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_function_call(node: &FunctionCallContent) -> Option<IN5Args> {
+    pub fn from_function_call(node: &FunctionCallContent) -> Option<IndentParenExprArgs> {
         let mut filtered_member_ranges: Vec<ZeroRange> = vec![];
         for (arg, _comma) in node.arguments.iter() {
             filtered_member_ranges.append(&mut Self::filter_out_parenthesized_ranges(arg.tokens()));
         }
-        Some(IN5Args {
+        Some(IndentParenExprArgs {
             members_ranges: filtered_member_ranges,
             lparen: node.lparen.range(),
         })
     }
 
     pub fn from_paren_expression(node: &ParenExpressionContent)
-            -> Option<IN5Args> {
-        Some(IN5Args {
+            -> Option<IndentParenExprArgs> {
+        Some(IndentParenExprArgs {
             members_ranges: Self::filter_out_parenthesized_ranges(node.expr.tokens()),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_method(node: &MethodContent) -> Option<IN5Args> {
+    pub fn from_method(node: &MethodContent) -> Option<IndentParenExprArgs> {
         let mut filtered_member_ranges: Vec<ZeroRange> = vec![];
         for (arg, _comma) in node.arguments.iter() {
             filtered_member_ranges.append(&mut Self::filter_out_parenthesized_ranges(arg.tokens()));
         }
-        Some(IN5Args {
+        Some(IndentParenExprArgs {
             members_ranges: filtered_member_ranges,
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_while(node: &WhileContent) -> Option<IN5Args> {
-        Some(IN5Args {
+    pub fn from_while(node: &WhileContent) -> Option<IndentParenExprArgs> {
+        Some(IndentParenExprArgs {
             members_ranges: Self::filter_out_parenthesized_ranges(node.cond.tokens()),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_do_while(node: &DoContent) -> Option<IN5Args> {
-        Some(IN5Args {
+    pub fn from_do_while(node: &DoContent) -> Option<IndentParenExprArgs> {
+        Some(IndentParenExprArgs {
             members_ranges: Self::filter_out_parenthesized_ranges(node.cond.tokens()),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_if(node: &IfContent) -> Option<IN5Args>  {
-        Some(IN5Args {
+    pub fn from_if(node: &IfContent) -> Option<IndentParenExprArgs>  {
+        Some(IndentParenExprArgs {
             members_ranges: Self::filter_out_parenthesized_ranges(node.cond.tokens()),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_cast(node: &CastContent) -> Option<IN5Args> {
+    pub fn from_cast(node: &CastContent) -> Option<IndentParenExprArgs> {
         let mut cast_member_tokens = node.from.tokens();
         cast_member_tokens.append(&mut node.to.tokens());
-        Some(IN5Args {
+        Some(IndentParenExprArgs {
             members_ranges: Self::filter_out_parenthesized_ranges(cast_member_tokens),
             lparen: node.lparen.range(),
         })
     }
 
-    pub fn from_switch(node: &SwitchContent) -> Option<IN5Args> {
-        Some(IN5Args {
+    pub fn from_switch(node: &SwitchContent) -> Option<IndentParenExprArgs> {
+        Some(IndentParenExprArgs {
             members_ranges: Self::filter_out_parenthesized_ranges(node.expr.tokens()),
             lparen: node.lparen.range(),
         })
     }
 }
 
-impl IN5Rule {
+impl IndentParenExprRule {
     pub fn check<'a> (&self, acc: &mut Vec<DMLStyleError>,
-        args: Option<IN5Args>) {
+        args: Option<IndentParenExprArgs>) {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
         let expected_line_start = args.lparen.col_start.0 + 1;
@@ -527,9 +527,9 @@ impl IN5Rule {
     }
 }
 
-impl Rule for IN5Rule {
+impl Rule for IndentParenExprRule {
     fn name() -> &'static str {
-        "IN5"
+        "INDENT_PAREN_EXPR"
     }
     fn description() -> &'static str {
         "Continuation line broken inside a parenthesized expression not\

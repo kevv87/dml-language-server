@@ -7,7 +7,7 @@ pub mod tests;
 use spacing::{SpBracesRule,
     SpPunctRule, NspFunparRule, NspInparenRule,
     NspUnaryRule, NspTrailingRule};
-use indentation::{LongLinesRule, IdentNoTabRule, IndentCodeBlockRule, IndentClosingBraceRule, IN5Rule, IN9Rule, IN10Rule};
+use indentation::{LongLinesRule, IdentNoTabRule, IndentCodeBlockRule, IndentClosingBraceRule, IndentParenExprRule, IN9Rule, IN10Rule};
 use crate::lint::{LintCfg, DMLStyleError};
 use crate::analysis::{LocalDMLError, parsing::tree::ZeroRange};
 
@@ -22,7 +22,7 @@ pub struct CurrentRules {
     pub indent_no_tabs: IdentNoTabRule,
     pub indent_code_block: IndentCodeBlockRule,
     pub indent_closing_brace: IndentClosingBraceRule,
-    pub in5: IN5Rule,
+    pub indent_paren_expr: IndentParenExprRule,
     pub in9: IN9Rule,
     pub in10: IN10Rule
 }
@@ -39,7 +39,7 @@ pub fn  instantiate_rules(cfg: &LintCfg) -> CurrentRules {
         indent_no_tabs: IdentNoTabRule { enabled: cfg.indent_no_tabs.is_some() },
         indent_code_block: IndentCodeBlockRule::from_options(&cfg.indent_code_block),
         indent_closing_brace: IndentClosingBraceRule::from_options(&cfg.indent_closing_brace),
-        in5: IN5Rule { enabled: cfg.in5.is_some() },
+        indent_paren_expr: IndentParenExprRule { enabled: cfg.indent_paren_expr.is_some() },
         in9: IN9Rule::from_options(&cfg.in9),
         in10: IN10Rule::from_options(&cfg.in10)
     }

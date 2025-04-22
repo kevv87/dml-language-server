@@ -1,7 +1,7 @@
 mod no_tabs;
 mod code_block;
 mod closing_brace;
-mod in5;
+mod paren_expr;
 mod in9;
 mod in10;
 
