@@ -2,7 +2,7 @@ mod no_tabs;
 mod code_block;
 mod closing_brace;
 mod paren_expr;
-mod in9;
+mod switch_case;
 mod in10;
 
 use crate::lint::rules::tests::common::assert_snippet;

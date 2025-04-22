@@ -25,7 +25,7 @@ use crate::analysis::parsing::structure::{parse_vardecl, VarDecl};
 use crate::analysis::LocalDMLError;
 use crate::lint::{DMLStyleError,
                   rules::{CurrentRules,
-                          indentation::{IndentCodeBlockArgs, IndentClosingBraceArgs, IndentParenExprArgs, IN9Args},
+                          indentation::{IndentCodeBlockArgs, IndentClosingBraceArgs, IndentParenExprArgs, IndentSwitchCaseArgs},
                           spacing::{NspInparenArgs,
                                     SpBracesArgs,
                                     SpPunctArgs}},
@@ -1023,7 +1023,7 @@ impl TreeElement for SwitchCase {
         }
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
-        rules.in9.check(acc, IN9Args::from_switch_case(self, aux.depth));
+        rules.indent_switch_case.check(acc, IndentSwitchCaseArgs::from_switch_case(self, aux.depth));
     }
     fn should_increment_depth(&self) -> bool {
         matches!(self, SwitchCase::Statement(statement)

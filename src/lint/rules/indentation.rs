@@ -30,8 +30,8 @@ pub fn setup_indentation_size(cfg: &mut LintCfg) {
     if let Some(indent_code_block) = &mut cfg.indent_code_block {
         indent_code_block.indentation_spaces = indentation_spaces;
     }
-    if let Some(in9) = &mut cfg.in9 {
-        in9.indentation_spaces = indentation_spaces;
+    if let Some(indent_switch_case) = &mut cfg.indent_switch_case {
+        indent_switch_case.indentation_spaces = indentation_spaces;
     }
     if let Some(in10) = &mut cfg.in10 {
         in10.indentation_spaces = indentation_spaces;
@@ -541,24 +541,24 @@ impl Rule for IndentParenExprRule {
 }
 
 
-pub struct IN9Rule {
+pub struct IndentSwitchCaseRule {
     pub enabled: bool,
     indentation_spaces: u32
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct IN9Options {
+pub struct IndentSwitchCaseOptions {
     #[serde(default = "default_indentation_spaces")]
     pub indentation_spaces: u32,
 }
 
-pub struct IN9Args {
+pub struct IndentSwitchCaseArgs {
     case_range: ZeroRange,
     expected_depth: u32,
 }
 
-impl IN9Args {
-    pub fn from_switch_case(node: &SwitchCase, depth: u32) -> Option<IN9Args> {
+impl IndentSwitchCaseArgs {
+    pub fn from_switch_case(node: &SwitchCase, depth: u32) -> Option<IndentSwitchCaseArgs> {
         match node {
             SwitchCase::Case(_, _, _) |
             SwitchCase::Default(_, _) => {},
@@ -572,7 +572,7 @@ impl IN9Args {
             }
         }
 
-        Some(IN9Args {
+        Some(IndentSwitchCaseArgs {
             case_range: node.range(),
             expected_depth: depth
         })
@@ -580,21 +580,21 @@ impl IN9Args {
     }
 }
 
-impl IN9Rule {
-    pub fn from_options(options: &Option<IN9Options>) -> IN9Rule {
+impl IndentSwitchCaseRule {
+    pub fn from_options(options: &Option<IndentSwitchCaseOptions>) -> IndentSwitchCaseRule {
         match options {
-            Some(options) => IN9Rule {
+            Some(options) => IndentSwitchCaseRule {
                 enabled: true,
                 indentation_spaces: options.indentation_spaces
             },
-            None => IN9Rule {
+            None => IndentSwitchCaseRule {
                 enabled: false,
                 indentation_spaces: 0
             }
         }
     }
     pub fn check(&self, acc: &mut Vec<DMLStyleError>,
-        args: Option<IN9Args>)
+        args: Option<IndentSwitchCaseArgs>)
     {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
@@ -616,9 +616,9 @@ impl IN9Rule {
     }
 }
 
-impl Rule for IN9Rule {
+impl Rule for IndentSwitchCaseRule {
     fn name() -> &'static str {
-        "IN9"
+        "IndentSwitchCase"
     }
     fn description() -> &'static str {
         "Case labels should be indented at the same level as the switch keyword, \
