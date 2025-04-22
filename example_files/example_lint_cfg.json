@@ -8,7 +8,7 @@
     "long_lines": { "max_length": 80 },
     "indent_size": { "indentation_spaces": 4 },
     "indent_no_tabs": {},
-    "in3": {},
+    "indent_code_block": {},
     "in4": {},
     "in5": {},
     "in9": {},

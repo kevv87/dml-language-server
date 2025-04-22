@@ -27,8 +27,8 @@ pub fn setup_indentation_size(cfg: &mut LintCfg) {
     if let Some(size) = &cfg.indent_size {
         indentation_spaces = size.indentation_spaces;
     }
-    if let Some(in3) = &mut cfg.in3 {
-        in3.indentation_spaces = indentation_spaces;
+    if let Some(indent_code_block) = &mut cfg.indent_code_block {
+        indent_code_block.indentation_spaces = indentation_spaces;
     }
     if let Some(in9) = &mut cfg.in9 {
         in9.indentation_spaces = indentation_spaces;
@@ -133,28 +133,28 @@ impl Rule for IdentNoTabRule {
     }
 }
 
-pub struct IN3Rule {
+pub struct IndentCodeBlockRule {
     pub enabled: bool,
     indentation_spaces: u32
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct IN3Options {
+pub struct IndentCodeBlockOptions {
     #[serde(default = "default_indentation_spaces")]
     pub indentation_spaces: u32,
 }
 
-pub struct IN3Args {
+pub struct IndentCodeBlockArgs {
     members_ranges: Vec<ZeroRange>,
     lbrace: ZeroRange,
     rbrace: ZeroRange,
     expected_depth: u32,
 }
 
-impl IN3Args {
-    pub fn from_obj_stmts_content(node: &ObjectStatementsContent, depth: u32) -> Option<IN3Args> {
+impl IndentCodeBlockArgs {
+    pub fn from_obj_stmts_content(node: &ObjectStatementsContent, depth: u32) -> Option<IndentCodeBlockArgs> {
         if let ObjectStatementsContent::List(lbrace, stmnts, rbrace) = node {
-            Some(IN3Args {
+            Some(IndentCodeBlockArgs {
                 members_ranges: stmnts.iter().map(|s| s.range()).collect(),
                 lbrace: lbrace.range(),
                 rbrace: rbrace.range(),
@@ -164,32 +164,32 @@ impl IN3Args {
             None
         }
     }
-    pub fn from_struct_type_content(node: &StructTypeContent, depth: u32) -> Option<IN3Args> {
-        Some(IN3Args {
+    pub fn from_struct_type_content(node: &StructTypeContent, depth: u32) -> Option<IndentCodeBlockArgs> {
+        Some(IndentCodeBlockArgs {
             members_ranges: node.members.iter().map(|m| m.range()).collect(),
             lbrace: node.lbrace.range(),
             rbrace: node.rbrace.range(),
             expected_depth: depth,
         })
     }
-    pub fn from_compound_content(node: &CompoundContent, depth: u32) -> Option<IN3Args> {
-        Some(IN3Args {
+    pub fn from_compound_content(node: &CompoundContent, depth: u32) -> Option<IndentCodeBlockArgs> {
+        Some(IndentCodeBlockArgs {
             members_ranges: node.statements.iter().map(|s| s.range()).collect(),
             lbrace: node.lbrace.range(),
             rbrace: node.rbrace.range(),
             expected_depth: depth,
         })
     }
-    pub fn from_layout_content(node: &LayoutContent, depth: u32) -> Option<IN3Args> {
-        Some(IN3Args {
+    pub fn from_layout_content(node: &LayoutContent, depth: u32) -> Option<IndentCodeBlockArgs> {
+        Some(IndentCodeBlockArgs {
             members_ranges: node.fields.iter().map(|m| m.range()).collect(),
             lbrace: node.lbrace.range(),
             rbrace: node.rbrace.range(),
             expected_depth: depth,
         })
     }
-    pub fn from_bitfields_content(node: &BitfieldsContent, depth: u32) -> Option<IN3Args> {
-        Some(IN3Args {
+    pub fn from_bitfields_content(node: &BitfieldsContent, depth: u32) -> Option<IndentCodeBlockArgs> {
+        Some(IndentCodeBlockArgs {
             members_ranges: node.fields.iter().map(|m| m.range()).collect(),
             lbrace: node.lbrace.range(),
             rbrace: node.rbrace.range(),
@@ -198,21 +198,21 @@ impl IN3Args {
     }
 }
 
-impl IN3Rule {
-    pub fn from_options(options: &Option<IN3Options>) -> IN3Rule {
+impl IndentCodeBlockRule {
+    pub fn from_options(options: &Option<IndentCodeBlockOptions>) -> IndentCodeBlockRule {
         match options {
-            Some(options) => IN3Rule {
+            Some(options) => IndentCodeBlockRule {
                 enabled: true,
                 indentation_spaces: options.indentation_spaces
             },
-            None => IN3Rule {
+            None => IndentCodeBlockRule {
                 enabled: false,
                 indentation_spaces: 0
             }
         }
     }
     pub fn check(&self, acc: &mut Vec<DMLStyleError>,
-        args: Option<IN3Args>)
+        args: Option<IndentCodeBlockArgs>)
     {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
@@ -239,9 +239,9 @@ impl IN3Rule {
     }
 }
 
-impl Rule for IN3Rule {
+impl Rule for IndentCodeBlockRule {
     fn name() -> &'static str {
-        "IN3"
+        "INDENT_CODE_BLOCK"
     }
     fn description() -> &'static str {
         "Previous line contains an openning brace and current line is not one\
