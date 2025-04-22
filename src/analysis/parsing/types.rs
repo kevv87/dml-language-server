@@ -1,6 +1,6 @@
 //  © 2024 Intel Corporation
 //  SPDX-License-Identifier: Apache-2.0 and MIT
-use crate::lint::{rules::{indentation::{IndentCodeBlockArgs, IN4Args},
+use crate::lint::{rules::{indentation::{IndentCodeBlockArgs, IndentClosingBraceArgs},
                             spacing::SpBracesArgs,
                             CurrentRules},
                             AuxParams,
@@ -56,7 +56,7 @@ impl TreeElement for StructTypeContent {
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.indent_code_block.check(acc, IndentCodeBlockArgs::from_struct_type_content(self, aux.depth));
-        rules.in4.check(acc, IN4Args::from_struct_type_content(self, aux.depth));
+        rules.indent_closing_brace.check(acc, IndentClosingBraceArgs::from_struct_type_content(self, aux.depth));
         rules.sp_brace.check(acc, SpBracesArgs::from_struct_type_content(self));
     }
     fn should_increment_depth(&self) -> bool {
@@ -139,7 +139,7 @@ impl TreeElement for LayoutContent {
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.indent_code_block.check(acc, IndentCodeBlockArgs::from_layout_content(self, aux.depth));
-        rules.in4.check(acc, IN4Args::from_layout_content(self, aux.depth));
+        rules.indent_closing_brace.check(acc, IndentClosingBraceArgs::from_layout_content(self, aux.depth));
         rules.sp_brace.check(acc, SpBracesArgs::from_layout_content(self));
     }
     fn should_increment_depth(&self) -> bool {
@@ -317,7 +317,7 @@ impl TreeElement for BitfieldsContent {
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.sp_brace.check(acc, SpBracesArgs::from_bitfields_content(self));
         rules.indent_code_block.check(acc, IndentCodeBlockArgs::from_bitfields_content(self, aux.depth));
-        rules.in4.check(acc, IN4Args::from_bitfields_content(self, aux.depth));
+        rules.indent_closing_brace.check(acc, IndentClosingBraceArgs::from_bitfields_content(self, aux.depth));
     }
     fn should_increment_depth(&self) -> bool {
         true

@@ -25,7 +25,7 @@ use crate::analysis::parsing::structure::{parse_vardecl, VarDecl};
 use crate::analysis::LocalDMLError;
 use crate::lint::{DMLStyleError,
                   rules::{CurrentRules,
-                          indentation::{IndentCodeBlockArgs, IN4Args, IN5Args, IN9Args},
+                          indentation::{IndentCodeBlockArgs, IndentClosingBraceArgs, IN5Args, IN9Args},
                           spacing::{NspInparenArgs,
                                     SpBracesArgs,
                                     SpPunctArgs}},
@@ -147,7 +147,7 @@ impl TreeElement for CompoundContent {
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.sp_brace.check(acc, SpBracesArgs::from_compound(self));
         rules.indent_code_block.check(acc, IndentCodeBlockArgs::from_compound_content(self, aux.depth));
-        rules.in4.check(acc, IN4Args::from_compound_content(self, aux.depth));
+        rules.indent_closing_brace.check(acc, IndentClosingBraceArgs::from_compound_content(self, aux.depth));
     }
     fn should_increment_depth(&self) -> bool {
         true
@@ -1113,7 +1113,7 @@ impl TreeElement for SwitchContent {
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>,
                       rules: &CurrentRules, aux: AuxParams)
     {
-        rules.in4.check(acc, IN4Args::from_switch_content(self, aux.depth));
+        rules.indent_closing_brace.check(acc, IndentClosingBraceArgs::from_switch_content(self, aux.depth));
         rules.in5.check(acc, IN5Args::from_switch(self));
     }
 }

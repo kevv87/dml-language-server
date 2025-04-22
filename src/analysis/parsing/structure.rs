@@ -20,7 +20,7 @@ use crate::lint::rules::spacing::{SpBracesArgs,
                                   NspInparenArgs,
                                   NspFunparArgs,
                                   SpPunctArgs};
-use crate::lint::rules::indentation::{IndentCodeBlockArgs, IN4Args, IN5Args};
+use crate::lint::rules::indentation::{IndentCodeBlockArgs, IndentClosingBraceArgs, IN5Args};
 use crate::lint::{rules::CurrentRules, AuxParams, DMLStyleError};
 use crate::analysis::reference::{Reference, ReferenceKind};
 use crate::analysis::FileSpec;
@@ -708,7 +708,7 @@ impl TreeElement for ObjectStatementsContent {
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.sp_brace.check(acc, SpBracesArgs::from_obj_stmts(self));
         rules.indent_code_block.check(acc, IndentCodeBlockArgs::from_obj_stmts_content(self, aux.depth));
-        rules.in4.check(acc, IN4Args::from_obj_stmts_content(self, aux.depth));
+        rules.indent_closing_brace.check(acc, IndentClosingBraceArgs::from_obj_stmts_content(self, aux.depth));
     }
     fn should_increment_depth(&self) -> bool {
         matches!(self, ObjectStatementsContent::List(lbrace, list, rbrace)

@@ -7,7 +7,7 @@ use rules::{instantiate_rules, CurrentRules, RuleType};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
                       indentation::{LongLineOptions, IndentSizeOptions, IndentCodeBlockOptions,
-                                    IdentNoTabOptions, IN4Options, IN5Options, IN9Options, IN10Options},
+                                    IdentNoTabOptions, IndentClosingBraceOptions, IN5Options, IN9Options, IN10Options},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
@@ -66,7 +66,7 @@ pub struct LintCfg {
     #[serde(default)]
     pub indent_code_block: Option<IndentCodeBlockOptions>,
     #[serde(default)]
-    pub in4: Option<IN4Options>,
+    pub indent_closing_brace: Option<IndentClosingBraceOptions>,
     #[serde(default)]
     pub in5: Option<IN5Options>,
     #[serde(default)]
@@ -88,7 +88,7 @@ impl Default for LintCfg {
             indent_size: Some(IndentSizeOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
             indent_no_tabs: Some(IdentNoTabOptions{}),
             indent_code_block: Some(IndentCodeBlockOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
-            in4: Some(IN4Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            indent_closing_brace: Some(IndentClosingBraceOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
             in5: Some(IN5Options{}),
             in9: Some(IN9Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
             in10: Some(IN10Options{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),

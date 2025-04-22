@@ -252,20 +252,20 @@ impl Rule for IndentCodeBlockRule {
     }
 }
 
-pub struct IN4Rule {
+pub struct IndentClosingBraceRule {
     pub enabled: bool,
     pub indentation_spaces: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct IN4Options {
+pub struct IndentClosingBraceOptions {
     #[serde(default = "default_indentation_spaces")]
     pub indentation_spaces: u32,
 }
 
-impl Rule for IN4Rule {
+impl Rule for IndentClosingBraceRule {
     fn name() -> &'static str {
-        "IN4"
+        "INDENT_CLOSING_BRACE"
     }
     fn description() -> &'static str {
         "Closing braces at the beginning of a line should be aligned to the corresponding \
@@ -277,16 +277,16 @@ impl Rule for IN4Rule {
     }
 }
 
-pub struct IN4Args {
+pub struct IndentClosingBraceArgs {
     expected_depth: u32,
     lbrace: ZeroRange,
     last_member: ZeroRange,
     rbrace: ZeroRange,
 }
 
-impl IN4Args {
-    pub fn from_compound_content(node: &CompoundContent, depth: u32) -> Option<IN4Args> {
-        Some(IN4Args {
+impl IndentClosingBraceArgs {
+    pub fn from_compound_content(node: &CompoundContent, depth: u32) -> Option<IndentClosingBraceArgs> {
+        Some(IndentClosingBraceArgs {
             expected_depth: depth.saturating_sub(1),
             lbrace: node.lbrace.range(),
             last_member: node.statements.last()?.range(),
@@ -294,9 +294,9 @@ impl IN4Args {
         })
     }
 
-    pub fn from_obj_stmts_content(node: &ObjectStatementsContent, depth: u32) -> Option<IN4Args> {
+    pub fn from_obj_stmts_content(node: &ObjectStatementsContent, depth: u32) -> Option<IndentClosingBraceArgs> {
         if let ObjectStatementsContent::List(lbrace, stmnts, rbrace) = node {
-            Some(IN4Args {
+            Some(IndentClosingBraceArgs {
                 expected_depth: depth.saturating_sub(1),
                 lbrace: lbrace.range(),
                 last_member: stmnts.last()?.range(),
@@ -307,8 +307,8 @@ impl IN4Args {
         }
     }
 
-    pub fn from_switch_content(node: &SwitchContent, depth: u32) -> Option<IN4Args> {
-        Some(IN4Args {
+    pub fn from_switch_content(node: &SwitchContent, depth: u32) -> Option<IndentClosingBraceArgs> {
+        Some(IndentClosingBraceArgs {
             // Switch content does not increase indentation level before this call
             // so there is no need to reduce it
             expected_depth: depth,
@@ -318,8 +318,8 @@ impl IN4Args {
         })
     }
 
-    pub fn from_struct_type_content(node: &StructTypeContent, depth: u32) -> Option<IN4Args> {
-        Some(IN4Args {
+    pub fn from_struct_type_content(node: &StructTypeContent, depth: u32) -> Option<IndentClosingBraceArgs> {
+        Some(IndentClosingBraceArgs {
             expected_depth: depth.saturating_sub(1),
             lbrace: node.lbrace.range(),
             last_member: node.members.last()?.range(),
@@ -327,8 +327,8 @@ impl IN4Args {
         })
     }
 
-    pub fn from_layout_content(node: &LayoutContent, depth: u32) -> Option<IN4Args> {
-        Some(IN4Args {
+    pub fn from_layout_content(node: &LayoutContent, depth: u32) -> Option<IndentClosingBraceArgs> {
+        Some(IndentClosingBraceArgs {
             expected_depth: depth.saturating_sub(1),
             lbrace: node.lbrace.range(),
             last_member: node.fields.last()?.range(),
@@ -336,8 +336,8 @@ impl IN4Args {
         })
     }
 
-    pub fn from_bitfields_content(node: &BitfieldsContent, depth: u32) -> Option<IN4Args> {
-        Some(IN4Args {
+    pub fn from_bitfields_content(node: &BitfieldsContent, depth: u32) -> Option<IndentClosingBraceArgs> {
+        Some(IndentClosingBraceArgs {
             expected_depth: depth.saturating_sub(1),
             lbrace: node.lbrace.range(),
             last_member: node.fields.last()?.range(),
@@ -347,21 +347,21 @@ impl IN4Args {
 
 }
 
-impl IN4Rule {
-    pub fn from_options(options: &Option<IN4Options>) -> IN4Rule {
+impl IndentClosingBraceRule {
+    pub fn from_options(options: &Option<IndentClosingBraceOptions>) -> IndentClosingBraceRule {
         match options {
-            Some(options) => IN4Rule {
+            Some(options) => IndentClosingBraceRule {
                 enabled: true,
                 indentation_spaces: options.indentation_spaces,
             },
-            None => IN4Rule {
+            None => IndentClosingBraceRule {
                 enabled: false,
                 indentation_spaces: 0,
             },
         }
     }
 
-    pub fn check(&self, acc: &mut Vec<DMLStyleError>, args: Option<IN4Args>) {
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>, args: Option<IndentClosingBraceArgs>) {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
 
