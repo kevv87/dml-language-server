@@ -12,5 +12,5 @@
     "indent_closing_brace": {},
     "indent_paren_expr": {},
     "indent_switch_case": {},
-    "in10": {}
+    "indent_empty_loop": {}
 }

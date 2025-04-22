@@ -33,8 +33,8 @@ pub fn setup_indentation_size(cfg: &mut LintCfg) {
     if let Some(indent_switch_case) = &mut cfg.indent_switch_case {
         indent_switch_case.indentation_spaces = indentation_spaces;
     }
-    if let Some(in10) = &mut cfg.in10 {
-        in10.indentation_spaces = indentation_spaces;
+    if let Some(indent_empty_loop) = &mut cfg.indent_empty_loop {
+        indent_empty_loop.indentation_spaces = indentation_spaces;
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -629,28 +629,28 @@ impl Rule for IndentSwitchCaseRule {
     }
 }
 
-// IN10: Indentation in empty loop
-pub struct IN10Rule {
+// IndentEmptyLoop: Indentation in empty loop
+pub struct IndentEmptyLoopRule {
     pub enabled: bool,
     indentation_spaces: u32
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct IN10Options {
+pub struct IndentEmptyLoopOptions {
     #[serde(default = "default_indentation_spaces")]
     pub indentation_spaces: u32,
 }
 
-pub struct IN10Args {
+pub struct IndentEmptyLoopArgs {
     loop_keyword_range: ZeroRange,
     semicolon_range: ZeroRange,
     expected_depth: u32,
 }
 
-impl IN10Args {
-    pub fn from_for_content(node: &ForContent, depth: u32) -> Option<IN10Args> {
+impl IndentEmptyLoopArgs {
+    pub fn from_for_content(node: &ForContent, depth: u32) -> Option<IndentEmptyLoopArgs> {
         if let Content::Some(statement::StatementContent::Empty(semicolon)) = node.statement.content.as_ref() {
-            return Some(IN10Args {
+            return Some(IndentEmptyLoopArgs {
                 loop_keyword_range: node.fortok.range(),
                 semicolon_range: semicolon.range(),
                 expected_depth: depth + 1
@@ -660,9 +660,9 @@ impl IN10Args {
         None
     }
 
-    pub fn from_while_content(node: &WhileContent, depth: u32) -> Option<IN10Args> {
+    pub fn from_while_content(node: &WhileContent, depth: u32) -> Option<IndentEmptyLoopArgs> {
         if let Content::Some(statement::StatementContent::Empty(semicolon)) = node.statement.content.as_ref() {
-            return Some(IN10Args {
+            return Some(IndentEmptyLoopArgs {
                 loop_keyword_range: node.whiletok.range(),
                 semicolon_range: semicolon.range(),
                 expected_depth: depth + 1
@@ -673,21 +673,21 @@ impl IN10Args {
     }
 }
 
-impl IN10Rule {
-    pub fn from_options(options: &Option<IN10Options>) -> IN10Rule {
+impl IndentEmptyLoopRule {
+    pub fn from_options(options: &Option<IndentEmptyLoopOptions>) -> IndentEmptyLoopRule {
         match options {
-            Some(options) => IN10Rule {
+            Some(options) => IndentEmptyLoopRule {
                 enabled: true,
                 indentation_spaces: options.indentation_spaces
             },
-            None => IN10Rule {
+            None => IndentEmptyLoopRule {
                 enabled: false,
                 indentation_spaces: 0
             }
         }
     }
     pub fn check(&self, acc: &mut Vec<DMLStyleError>,
-        args: Option<IN10Args>)
+        args: Option<IndentEmptyLoopArgs>)
     {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
@@ -709,7 +709,7 @@ impl IN10Rule {
     }
 }
 
-impl Rule for IN10Rule {
+impl Rule for IndentEmptyLoopRule {
     fn name() -> &'static str {
         "IN10_INDENTATION_EMPTY_LOOP"
     }

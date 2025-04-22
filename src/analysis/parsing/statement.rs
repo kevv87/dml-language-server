@@ -2,7 +2,7 @@
 //  SPDX-License-Identifier: Apache-2.0 and MIT
 use log::error;
 
-use crate::lint::rules::indentation::IN10Args;
+use crate::lint::rules::indentation::IndentEmptyLoopArgs;
 use crate::span::Range;
 use crate::analysis::parsing::lexer::TokenKind;
 use crate::analysis::parsing::statement;
@@ -549,7 +549,7 @@ impl TreeElement for WhileContent {
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_while(self));
-        rules.in10.check(acc, IN10Args::from_while_content(self, aux.depth));
+        rules.indent_empty_loop.check(acc, IndentEmptyLoopArgs::from_while_content(self, aux.depth));
     }
 }
 
@@ -864,7 +864,7 @@ impl TreeElement for ForContent {
     }
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_for(self));
-        rules.in10.check(acc, IN10Args::from_for_content(self, aux.depth));
+        rules.indent_empty_loop.check(acc, IndentEmptyLoopArgs::from_for_content(self, aux.depth));
     }
 }
 
