@@ -125,8 +125,8 @@ impl LinterAnalysis {
         let rules =  instantiate_rules(&cfg);
         let local_lint_errors = begin_style_check(original_analysis.ast, file.text, &rules)?;
         let mut lint_errors = vec![];
-        for error in local_lint_errors {
-            lint_errors.push(error.error.warning_with_file(path));
+        for entry in local_lint_errors {
+            lint_errors.push(entry.error.warning_with_file(path));
         }
 
         let res = LinterAnalysis {

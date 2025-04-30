@@ -10,6 +10,9 @@ pub struct ExpectedDMLStyleError {
     pub rule_type: RuleType,
 }
 
+// Each test expects errors from a single RuleType
+// A list of tuples is used to define the ZeroRange location
+// of each expected error
 macro_rules! define_expected_errors {
     ($rule_type:expr, $(($start_line:expr, $end_line:expr, $start_col:expr, $end_col:expr)),* $(,)?) => {
         vec![
