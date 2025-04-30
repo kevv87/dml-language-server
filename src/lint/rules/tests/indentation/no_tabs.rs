@@ -1,5 +1,4 @@
-use crate::analysis::ZeroRange;
-use crate::lint::rules::tests::common::{set_up, robust_assert_snippet, ExpectedDMLStyleError};
+use crate::lint::rules::tests::common::{set_up, robust_assert_snippet};
 use crate::lint::rules::RuleType;
 
 static USING_TAB_INDENT_INCORRECT: &str = "

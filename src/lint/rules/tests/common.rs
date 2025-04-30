@@ -13,12 +13,13 @@ pub struct ExpectedDMLStyleError {
 // Each test expects errors from a single RuleType
 // A list of tuples is used to define the ZeroRange location
 // of each expected error
+#[macro_export]
 macro_rules! define_expected_errors {
     ($rule_type:expr, $(($start_line:expr, $end_line:expr, $start_col:expr, $end_col:expr)),* $(,)?) => {
         vec![
             $(
-                ExpectedDMLStyleError {
-                    range: ZeroRange::from_u32($start_line, $end_line, $start_col, $end_col),
+                $crate::lint::rules::tests::common::ExpectedDMLStyleError {
+                    range: $crate::analysis::ZeroRange::from_u32($start_line, $end_line, $start_col, $end_col),
                     rule_type: $rule_type,
                 }
             ),*
