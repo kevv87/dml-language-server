@@ -1,4 +1,4 @@
-use crate::lint::rules::tests::common::{set_up, robust_assert_snippet};
+use crate::lint::rules::tests::common::{set_up, robust_assert_snippet as assert_snippet};
 use crate::lint::rules::RuleType;
 
 static USING_TAB_INDENT_INCORRECT: &str = "
@@ -37,7 +37,7 @@ fn using_tab_indent_incorrect() {
         (17, 17, 0, 1),
         (17, 17, 5, 6),
     );
-    robust_assert_snippet(USING_TAB_INDENT_INCORRECT, expected_errors, &rules);
+    assert_snippet(USING_TAB_INDENT_INCORRECT, expected_errors, &rules);
 }
 
 static USING_SPACE_INDENT_CORRECT: &str = "
@@ -67,5 +67,5 @@ bank BankA {
 #[test]
 fn using_space_indent_correct() {
     let rules = set_up();
-    robust_assert_snippet(USING_SPACE_INDENT_CORRECT, vec![], &rules);
+    assert_snippet(USING_SPACE_INDENT_CORRECT, vec![], &rules);
 }
