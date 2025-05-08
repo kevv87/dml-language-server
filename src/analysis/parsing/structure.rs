@@ -607,6 +607,10 @@ impl TreeElement for Instantiation {
                 tok, file, ReferenceKind::Template));
         accumulator.extend(refs);
     }
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
+        rules.nsp_inparen.check(acc, NspInparenArgs::from_instantiation(self));
+        rules.sp_punct.check(acc, SpPunctArgs::from_instantiation(self));
+    }
 }
 
 fn parse_instantiation(context: &ParseContext, stream: &mut FileParser<'_>, _file_info: &FileInfo)
@@ -838,6 +842,9 @@ impl TreeElement for CompositeObjectContent {
         errors
     }
     fn references<'a>(&self, _accumulator: &mut Vec<Reference>, _file: FileSpec<'a>) {}
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
+        rules.nsp_inparen.check(acc, NspInparenArgs::from_composite_obj_content(self));
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
