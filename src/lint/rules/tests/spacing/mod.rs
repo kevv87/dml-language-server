@@ -4,6 +4,7 @@ mod nsp_trailing;
 mod nsp_unary;
 mod sp_braces;
 mod sp_punct;
+mod sp_binop;
 
 // Put whitespace (space or newline):
 //  SP.reserved around reserved words, such as if, else, default,
@@ -15,17 +16,6 @@ method this_is_some_method() {
 local int this_some_integer = 0x666;
 if(this_some_integer == 0x666)
     return;
-}
-";
-
-//  SP.binop around binary operators except the dereferencing operators dot
-//  (a.b) and arrow (a->b)
-#[allow(dead_code)]
-static SP_BINOP: &str = "
-method this_is_some_method() {
-local int this_some_integer = 5+6;
-if (this_some_integer == 0x666)
-    this_some_integer = this.val;
 }
 ";
 
