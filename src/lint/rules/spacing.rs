@@ -1,4 +1,6 @@
 use itertools::izip;
+use lsp_types;
+use lsp_types::{TextEdit, Position};
 use std::convert::TryInto;
 use serde::{Deserialize, Serialize};
 use crate::analysis::parsing::types::{BitfieldsContent, LayoutContent,
@@ -97,17 +99,49 @@ impl SpBracesArgs {
 }
 
 impl SpBracesRule {
+    fn fix_lbrace(_location: &SpBracesArgs) -> TextEdit {
+        TextEdit {
+            range: lsp_types::Range::new(
+                Position::new(
+                    _location.lbrace.one_indexed().row_start.0,
+                    _location.lbrace.one_indexed().col_start.0),
+                Position::new(
+                    _location.lbrace.one_indexed().row_start.0,
+                    _location.lbrace.one_indexed().col_start.0)
+            ),
+            new_text: "{ ".to_string(),
+        }
+    }
+
+    fn fix_rbrace(_location: &SpBracesArgs) -> TextEdit {
+        TextEdit {
+            range: lsp_types::Range::new(
+                Position::new(
+                    _location.rbrace.one_indexed().row_start.0,
+                    _location.rbrace.one_indexed().col_start.0),
+                Position::new(
+                    _location.rbrace.one_indexed().row_start.0,
+                    _location.rbrace.one_indexed().col_start.0)
+            ),
+            new_text: " }".to_string(),
+        }
+    }
+
     pub fn check(&self, acc: &mut Vec<DMLStyleError>,
         ranges: Option<SpBracesArgs>) {
         if !self.enabled { return; }
         if let Some(location) = ranges {
             if (location.lbrace.row_end == location.body_start.row_start)
-                && (location.lbrace.col_end == location.body_start.col_start) {
-                self.push_err(acc, location.lbrace);
+                && (location.lbrace.col_end == location.body_start.col_start)
+            {
+                self.push_err_with_fix(acc, location.lbrace,
+                    SpBracesRule::fix_lbrace(&location));
             }
             if (location.rbrace.row_start == location.body_end.row_end)
-                && (location.rbrace.col_start == location.body_end.col_end) {
-                self.push_err(acc, location.rbrace);
+                && (location.rbrace.col_start == location.body_end.col_end)
+            {
+                self.push_err_with_fix(acc, location.rbrace,
+                    SpBracesRule::fix_rbrace(&location));
             }
         }
     }

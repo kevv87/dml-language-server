@@ -4,6 +4,7 @@ pub mod indentation;
 #[cfg(test)]
 pub mod tests;
 
+use lsp_types::TextEdit;
 use spacing::{SpBracesRule,
     SpPunctRule, NspFunparRule, NspInparenRule,
     NspUnaryRule, NspTrailingRule};
@@ -57,8 +58,17 @@ pub trait Rule {
                 description: Self::description().to_string(),
             },
             rule_type: Self::get_rule_type(),
+            fix: None
         };
         acc.push(dmlerror);
+    }
+
+    fn push_err_with_fix(
+        &self, acc: &mut Vec<DMLStyleError>, range: ZeroRange,
+        fix: TextEdit
+    ) {
+        self.push_err(acc, range);
+        acc.last_mut().unwrap().fix = Some(fix);
     }
 }
 
