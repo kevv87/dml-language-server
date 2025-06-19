@@ -9,13 +9,83 @@ use crate::analysis::parsing::tree::{TreeElement, ZeroRange};
 use crate::analysis::parsing::expression::{FunctionCallContent, IndexContent,
                                            PostUnaryExpressionContent,
                                            UnaryExpressionContent};
-use crate::analysis::parsing::statement::{CompoundContent,
-                                          ExpressionStmtContent,
-                                          IfContent, VariableDeclContent};
+use crate::analysis::parsing::statement::{AfterContent, CompoundContent, ExpressionStmtContent, IfContent, VariableDeclContent};
 use crate::analysis::parsing::structure::{MethodContent,
                                           ObjectStatementsContent};
 
 use crate::span::{ZeroIndexed, Range};
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SpReservedOptions {}
+
+pub struct SpReservedRule {
+    pub enabled: bool,
+}
+pub struct SpReservedArgs {
+    before_range: Option<ZeroRange>,
+    token_range: ZeroRange,
+    after_range: Option<ZeroRange>,
+}
+impl SpReservedArgs {
+    pub fn from_after_content(node: &AfterContent) -> Option<SpReservedArgs> {
+        if let Some(timer) = &node.timer {
+            return Some(SpReservedArgs {
+                before_range: None,
+                token_range: node.after.range(),
+                after_range: Some(timer.range()),
+            });
+        }
+        None
+    }
+    pub fn from_if(node: &IfContent) -> Option<SpReservedArgs> {
+        return Some(SpReservedArgs {
+            before_range: None,
+            token_range: node.iftok.range(),
+            after_range: Some(node.lparen.range()),
+        });
+    }
+}
+
+impl SpReservedRule {
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>,
+        ranges: Option<SpReservedArgs>) {
+        if !self.enabled { return; }
+        if let Some(location) = ranges {
+            if let Some(before_range) = &location.before_range {
+                if (before_range.row_end == location.token_range.row_start)
+                    && (before_range.col_end == location.token_range.col_start) {
+                    acc.push(
+                        self.create_err(Range::combine(
+                            *before_range, location.token_range
+                        ))
+                    );
+                }
+            }
+            if let Some(after_range) = &location.after_range {
+                if (location.token_range.row_end == after_range.row_start)
+                    && (location.token_range.col_end == after_range.col_start) {
+                    acc.push(
+                        self.create_err(Range::combine(
+                            location.token_range, *after_range
+                        ))
+                    );
+                }
+            }
+        }
+    }
+}
+
+impl Rule for SpReservedRule {
+    fn name() -> &'static str {
+        "SP_RESERVED"
+    }
+    fn description() -> &'static str {
+        "Missing space around reserved words"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::SpReserved
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct SpBraceOptions {}

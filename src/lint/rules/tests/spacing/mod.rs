@@ -4,6 +4,7 @@ mod nsp_trailing;
 mod nsp_unary;
 mod sp_braces;
 mod sp_punct;
+mod sp_reserved;
 
 // Put whitespace (space or newline):
 //  SP.reserved around reserved words, such as if, else, default,

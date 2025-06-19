@@ -4,10 +4,11 @@ use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules, RuleType};
-use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
+use rules::{spacing::{SpReservedOptions, SpBraceOptions, SpPunctOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
-                      indentation::{LongLineOptions, IndentSizeOptions, IndentCodeBlockOptions,
-                                    IndentNoTabOptions, IndentClosingBraceOptions, IndentParenExprOptions, IndentSwitchCaseOptions, IndentEmptyLoopOptions},
+            indentation::{LongLineOptions, IndentSizeOptions, IndentCodeBlockOptions,
+                          IndentNoTabOptions, IndentClosingBraceOptions, IndentParenExprOptions,
+                          IndentSwitchCaseOptions, IndentEmptyLoopOptions},
                     };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
@@ -45,6 +46,7 @@ pub fn maybe_parse_lint_cfg(path: PathBuf) -> Option<LintCfg> {
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct LintCfg {
+    pub sp_reserved: Option<SpReservedOptions>,
     #[serde(default)]
     pub sp_brace: Option<SpBraceOptions>,
     #[serde(default)]
@@ -78,6 +80,7 @@ pub struct LintCfg {
 impl Default for LintCfg {
     fn default() -> LintCfg {
         LintCfg {
+            sp_reserved: Some(SpReservedOptions{}),
             sp_brace: Some(SpBraceOptions{}),
             sp_punct: Some(SpPunctOptions{}),
             nsp_funpar: Some(NspFunparOptions{}),
