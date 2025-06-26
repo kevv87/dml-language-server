@@ -552,6 +552,7 @@ impl TreeElement for WhileContent {
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_while(self));
         rules.indent_empty_loop.check(acc, IndentEmptyLoopArgs::from_while_content(self, aux.depth));
+        rules.sp_reserved.check(acc, SpReservedArgs::from_while(self));
     }
 }
 
@@ -867,6 +868,7 @@ impl TreeElement for ForContent {
     fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
         rules.indent_paren_expr.check(acc, IndentParenExprArgs::from_for(self));
         rules.indent_empty_loop.check(acc, IndentEmptyLoopArgs::from_for_content(self, aux.depth));
+        rules.sp_reserved.check(acc, SpReservedArgs::from_for(self));
     }
 }
 

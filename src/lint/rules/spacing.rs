@@ -9,7 +9,9 @@ use crate::analysis::parsing::tree::{TreeElement, ZeroRange};
 use crate::analysis::parsing::expression::{FunctionCallContent, IndexContent,
                                            PostUnaryExpressionContent,
                                            UnaryExpressionContent};
-use crate::analysis::parsing::statement::{AfterContent, CompoundContent, ExpressionStmtContent, IfContent, VariableDeclContent};
+use crate::analysis::parsing::statement::{AfterContent, CompoundContent, ExpressionStmtContent,
+                                          ForContent, IfContent, VariableDeclContent,
+                                          WhileContent};
 use crate::analysis::parsing::structure::{MethodContent,
                                           ObjectStatementsContent};
 
@@ -27,46 +29,77 @@ pub struct SpReservedArgs {
     after_range: Option<ZeroRange>,
 }
 impl SpReservedArgs {
-    pub fn from_after_content(node: &AfterContent) -> Option<SpReservedArgs> {
+    pub fn from_after_content(node: &AfterContent) -> Vec<SpReservedArgs> {
+        let mut args_list = vec![];
         if let Some(timer) = &node.timer {
-            return Some(SpReservedArgs {
+            args_list.push(SpReservedArgs {
                 before_range: None,
                 token_range: node.after.range(),
                 after_range: Some(timer.range()),
             });
         }
-        None
+        args_list
     }
-    pub fn from_if(node: &IfContent) -> Option<SpReservedArgs> {
-        return Some(SpReservedArgs {
+    pub fn from_if(node: &IfContent) -> Vec<SpReservedArgs> {
+        let mut args_list = vec![];
+
+        args_list.push(SpReservedArgs {
             before_range: None,
             token_range: node.iftok.range(),
             after_range: Some(node.lparen.range()),
         });
+
+        if let Some((else_tok, elsebranch)) = &node.elsebranch {
+            args_list.push(SpReservedArgs {
+                before_range: Some(node.truebranch.range()),
+                token_range: else_tok.range(),
+                after_range: Some(elsebranch.range()),
+            });
+        }
+
+        args_list
+    }
+    pub fn from_for(node: &ForContent) -> Vec<SpReservedArgs> {
+        let mut args_list = vec![];
+        args_list.push(SpReservedArgs {
+            before_range: None,
+            token_range: node.fortok.range(),
+            after_range: Some(node.lparen.range()),
+        });
+        args_list
+    }
+    pub fn from_while(node: &WhileContent) -> Vec<SpReservedArgs> {
+        let mut args_list = vec![];
+        args_list.push(SpReservedArgs {
+            before_range: None,
+            token_range: node.whiletok.range(),
+            after_range: Some(node.lparen.range()),
+        });
+        args_list
     }
 }
 
 impl SpReservedRule {
     pub fn check(&self, acc: &mut Vec<DMLStyleError>,
-        ranges: Option<SpReservedArgs>) {
+        args: Vec<SpReservedArgs>) {
         if !self.enabled { return; }
-        if let Some(location) = ranges {
-            if let Some(before_range) = &location.before_range {
-                if (before_range.row_end == location.token_range.row_start)
-                    && (before_range.col_end == location.token_range.col_start) {
+        for arg in args {
+            if let Some(before_range) = &arg.before_range {
+                if (before_range.row_end == arg.token_range.row_start)
+                    && (before_range.col_end == arg.token_range.col_start) {
                     acc.push(
                         self.create_err(Range::combine(
-                            *before_range, location.token_range
+                            *before_range, arg.token_range
                         ))
                     );
                 }
             }
-            if let Some(after_range) = &location.after_range {
-                if (location.token_range.row_end == after_range.row_start)
-                    && (location.token_range.col_end == after_range.col_start) {
+            if let Some(after_range) = &arg.after_range {
+                if (arg.token_range.row_end == after_range.row_start)
+                    && (arg.token_range.col_end == after_range.col_start) {
                     acc.push(
                         self.create_err(Range::combine(
-                            location.token_range, *after_range
+                            arg.token_range, *after_range
                         ))
                     );
                 }
