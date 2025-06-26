@@ -105,11 +105,11 @@ impl SpBracesRule {
         if let Some(location) = ranges {
             if (location.lbrace.row_end == location.body_start.row_start)
                 && (location.lbrace.col_end == location.body_start.col_start) {
-                self.push_err(acc, location.lbrace);
+                acc.push(self.create_err(location.lbrace));
             }
             if (location.rbrace.row_start == location.body_end.row_end)
                 && (location.rbrace.col_start == location.body_end.col_end) {
-                self.push_err(acc, location.rbrace);
+                acc.push(self.create_err(location.rbrace));
             }
         }
     }
@@ -241,7 +241,7 @@ impl SpPunctRule {
                         before_range.row_end, punct_range.row_start,
                         before_range.col_end, punct_range.col_start
                     );
-                    self.push_err(acc, error_range);
+                    acc.push(self.create_err(error_range));
                 }
 
                 if after_range.is_none() {continue;}
@@ -252,7 +252,7 @@ impl SpPunctRule {
                         punct_range.row_start, after_range.unwrap().row_end,
                         punct_range.col_start, after_range.unwrap().col_end,
                     );
-                    self.push_err(acc, error_range);
+                    acc.push(self.create_err(error_range));
                 }
             }
         }
@@ -305,7 +305,7 @@ impl NspFunparRule {
                  range: Option<NspFunparArgs>) {
         if !self.enabled { return; }
         if let Some(gap) = range {
-            self.push_err(acc, gap);
+            acc.push(self.create_err(gap));
         }
     }
 }
@@ -398,14 +398,14 @@ impl NspInparenRule {
                 let mut gap = location.opening;
                 gap.col_start = location.opening.col_end;
                 gap.col_end = location.content_start.col_start;
-                self.push_err(acc, gap);
+                acc.push(self.create_err(gap));
             }
             if (location.closing.row_start == location.content_end.row_end)
                 && (location.closing.col_start != location.content_end.col_end) { 
                 let mut gap = location.closing;
                 gap.col_end = location.closing.col_start;
                 gap.col_start = location.content_end.col_end;
-                self.push_err(acc, gap);
+                acc.push(self.create_err(gap));
             }
         }
     }
@@ -456,7 +456,7 @@ impl NspUnaryRule {
                  range: Option<NspUnaryArgs>) {
         if !self.enabled { return; }
         if let Some(gap) = range {
-            self.push_err(acc, gap);
+            acc.push(self.create_err(gap));
         }
     }
 }
@@ -485,10 +485,10 @@ impl NspTrailingRule {
         let row_u32 = row.try_into().unwrap();
         let tokens_end = line.trim_end().len().try_into().unwrap();
         if tokens_end < len {
-            self.push_err(acc, Range::<ZeroIndexed>::from_u32(row_u32,
+            acc.push(self.create_err(Range::<ZeroIndexed>::from_u32(row_u32,
                                                         row_u32,
                                                         tokens_end,
-                                                        len));
+                                                        len)));
         }
     }
 }
@@ -568,7 +568,7 @@ impl SpPtrDeclRule {
                 if ranges.operator_ranges.iter().any(|op_range| {
                     !has_space_between(&ranges.type_name_range, op_range)
                 }) {
-                    self.push_err(acc, ranges.type_name_range);
+                    acc.push(self.create_err(ranges.type_name_range));
                 }
             } 
         }
@@ -623,7 +623,7 @@ impl NspPtrDeclRule {
                     None => return,
                     Some(op_range) => {
                         if has_space_between(&op_range, &ranges.identifier_range) {
-                            self.push_err(acc, ranges.identifier_range);
+                            acc.push(self.create_err(ranges.identifier_range));
                         }
                     }
                 }
