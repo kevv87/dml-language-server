@@ -3,6 +3,7 @@ use crate::lint::rules::{instantiate_rules, CurrentRules, RuleType};
 use crate::lint::tests::create_ast_from_snippet;
 use crate::analysis::ZeroRange;
 use crate::vfs::Error;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct ExpectedDMLStyleError {
@@ -36,23 +37,14 @@ pub fn run_linter(source_code: &str, rules: &CurrentRules)
     begin_style_check(ast, source_code.to_string(), rules)
 }
 
-pub fn assert_snippet(source_code: &str, expected_errors: usize, rules: &CurrentRules) {
-    let lint_errors = run_linter(source_code, rules);
-    assert!(lint_errors.is_ok());
-    assert_eq!(lint_errors.clone().unwrap().len(), expected_errors,
-               "{:#?}", lint_errors);
-}
-
-pub fn robust_assert_snippet(source_code: &str, expected_errors: Vec<ExpectedDMLStyleError>, rules: &CurrentRules) {
-    let lint_errors = run_linter(source_code, rules);
-    assert!(lint_errors.is_ok());
-    let lint_errors = lint_errors.unwrap();
+pub fn assert_snippet(source_code: &str, expected_errors: Vec<ExpectedDMLStyleError>, rules: &CurrentRules) {
+    let lint_errors = run_linter(source_code, rules).unwrap();
     assert_eq!(lint_errors.len(), expected_errors.len(), "{:#?}", lint_errors);
 
-    for (actual, expected) in lint_errors.iter().zip(expected_errors.iter()) {
-        assert_eq!(actual.error.range, expected.range, "Range mismatch: {:#?} vs {:#?}", actual, expected);
-        assert_eq!(actual.rule_type, expected.rule_type, "RuleType mismatch: {:#?} vs {:#?}", actual, expected);
-    }
+    let actual_errors: HashSet<_> = lint_errors.iter().map(|e| (e.error.range, e.rule_type.clone())).collect();
+    let expected_errors: HashSet<_> = expected_errors.iter().map(|e| (e.range, e.rule_type.clone())).collect();
+
+    assert_eq!(actual_errors, expected_errors, "Mismatch between actual and expected errors:\nActual: {:#?}\nExpected: {:#?}", actual_errors, expected_errors);
 }
 
 pub fn set_up() -> CurrentRules {
