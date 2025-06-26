@@ -11,7 +11,7 @@ method this_is_some_method(conf_object_t *dummy_obj) {
 
 #[allow(dead_code)]
 static SP_PTRDECL_INCORRECT_PARAM: &str = "
-method this_is_some_method(conf_object_t* dummy_obj) {
+method this_is_some_method(conf_object_t*dummy_obj) {
     if(!dummy_obj) {
         return;
     }
@@ -20,7 +20,7 @@ method this_is_some_method(conf_object_t* dummy_obj) {
 #[allow(dead_code)]
 static SP_PTRDECL_INCORRECT_STATEMENT: &str = "
 method this_is_some_method(conf_object_t *dummy_obj) {
-    local conf_object_t* conf = dummy_obj;
+    local conf_object_t*conf = dummy_obj;
     if(!conf) {
         return;
     }
@@ -41,9 +41,8 @@ fn sp_ptrdecl_correct() {
 }
 
 #[test]
-fn sp_ptrdecl_incorrect() {
+fn sp_ptrdecl_incorrect_param() {
     let mut rules = set_up();
-    rules.nsp_ptrdecl.enabled = false;
     let expected_errors = define_expected_errors!(
         RuleType::SpPtrDecl,
         (1, 1, 27, 40),
@@ -56,7 +55,6 @@ fn sp_ptrdecl_incorrect() {
 #[test]
 fn sp_ptrdecl_incorrect_statement() {
     let mut rules = set_up();
-    rules.nsp_ptrdecl.enabled = false;
     let expected_errors = define_expected_errors!(
         RuleType::SpPtrDecl,
         (2, 2, 10, 23),
