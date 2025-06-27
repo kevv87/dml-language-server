@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules, RuleType};
-use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
+use rules::{spacing::{SpBraceOptions, SpPunctOptions, SpBinopOptions, NspFunparOptions,
                       NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
                       indentation::{LongLineOptions, IndentSizeOptions, IndentCodeBlockOptions,
                                     IndentNoTabOptions, IndentClosingBraceOptions, IndentParenExprOptions, IndentSwitchCaseOptions, IndentEmptyLoopOptions},
@@ -50,6 +50,8 @@ pub struct LintCfg {
     #[serde(default)]
     pub sp_punct: Option<SpPunctOptions>,
     #[serde(default)]
+    pub sp_binop: Option<SpBinopOptions>,
+    #[serde(default)]
     pub nsp_funpar: Option<NspFunparOptions>,
     #[serde(default)]
     pub nsp_inparen: Option<NspInparenOptions>,
@@ -80,6 +82,7 @@ impl Default for LintCfg {
         LintCfg {
             sp_brace: Some(SpBraceOptions{}),
             sp_punct: Some(SpPunctOptions{}),
+            sp_binop: Some(SpBinopOptions{}),
             nsp_funpar: Some(NspFunparOptions{}),
             nsp_inparen: Some(NspInparenOptions{}),
             nsp_unary: Some(NspUnaryOptions{}),

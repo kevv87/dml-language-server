@@ -6,7 +6,8 @@ use crate::analysis::parsing::types::{BitfieldsContent, LayoutContent,
 use crate::lint::{rules::{Rule, RuleType},
                   DMLStyleError};
 use crate::analysis::parsing::tree::{TreeElement, ZeroRange};
-use crate::analysis::parsing::expression::{FunctionCallContent, IndexContent,
+use crate::analysis::parsing::expression::{BinaryExpressionContent,
+                                           FunctionCallContent, IndexContent,
                                            PostUnaryExpressionContent,
                                            UnaryExpressionContent};
 use crate::analysis::parsing::statement::{CompoundContent,
@@ -122,6 +123,54 @@ impl Rule for SpBracesRule {
     }
     fn get_rule_type() -> RuleType {
         RuleType::SpBraces
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SpBinopOptions {}
+pub struct SpBinopRule {
+    pub enabled: bool,
+}
+pub struct SpBinopArgs {
+    left: ZeroRange,
+    operator:  ZeroRange,
+    right: ZeroRange,
+}
+impl SpBinopArgs {
+    pub fn from_binary_expression_content(node: &BinaryExpressionContent) -> Option<SpBinopArgs> {
+        Some(SpBinopArgs {
+            left: node.left.range(),
+            operator: node.operation.range(),
+            right: node.right.range(),
+        })
+    }
+}
+impl SpBinopRule {
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>,
+        ranges: Option<SpBinopArgs>) {
+        if !self.enabled { return; }
+        if let Some(location) = ranges {
+            if (location.left.row_end == location.operator.row_start)
+                && (location.left.col_end == location.operator.col_start) {
+                acc.push(self.create_err(location.left));
+            }
+            if (location.right.row_start == location.operator.row_end)
+                && (location.operator.col_end == location.right.col_start) {
+
+                acc.push(self.create_err(location.right));
+            }
+        }
+    }
+}
+impl Rule for SpBinopRule {
+    fn name() -> &'static str {
+        "SP_BINOP"
+    }
+    fn description() -> &'static str {
+        "Missing space around binary operator"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::SpBinop
     }
 }
 
