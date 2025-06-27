@@ -1,5 +1,3 @@
-use crate::lint::rules::spacing::{NspPtrDeclArgs, SpPtrDeclArgs};
-use crate::lint::{rules::CurrentRules, AuxParams, DMLStyleError};
 //  © 2024 Intel Corporation
 //  SPDX-License-Identifier: Apache-2.0 and MIT
 use crate::span::Range;
@@ -592,10 +590,6 @@ impl TreeElement for CDeclContent {
     fn subs(&self) -> TreeElements<'_> {
         create_subs!(&self.consttok, &self.base,
                      &self.modifiers, &self.decl)
-    }
-    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, _aux: AuxParams) {
-        rules.sp_ptrdecl.check(acc, SpPtrDeclArgs::from_cdecl(self));
-        rules.nsp_ptrdecl.check(acc, NspPtrDeclArgs::from_cdecl(self));
     }
 }
 
