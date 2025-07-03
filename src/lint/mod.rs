@@ -46,6 +46,7 @@ pub fn maybe_parse_lint_cfg(path: PathBuf) -> Option<LintCfg> {
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct LintCfg {
+    #[serde(default)]
     pub sp_reserved: Option<SpReservedOptions>,
     #[serde(default)]
     pub sp_brace: Option<SpBraceOptions>,
@@ -217,6 +218,8 @@ pub mod tests {
                                    env!("CARGO_MANIFEST_DIR"),
                                    EXAMPLE_CFG);
         let example_cfg = parse_lint_cfg(example_path.into()).unwrap();
+        println!("Example LintCfg: {:#?}", example_cfg);
+        println!("LintCfg::default(): {:#?}", LintCfg::default());
         assert_eq!(example_cfg, LintCfg::default());
     }
 }
