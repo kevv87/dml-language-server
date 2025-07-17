@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use crate::analysis::parsing::lexer::TokenKind;
 use crate::analysis::parsing::parser::Token;
 use crate::analysis::parsing::structure::MethodContent;
-use crate::analysis::parsing::tree::{TreeElement, TreeElementTokenIterator, ZeroRange};
-use crate::analysis::parsing::expression::{CastContent, FunctionCallContent, ParenExpressionContent};
+use crate::analysis::parsing::tree::{ZeroRange, TreeElementTokenIterator, TreeElement};
+use crate::analysis::parsing::expression::{CastContent, FunctionCallContent,
+                                           ParenExpressionContent, TertiaryExpressionContent};
 use crate::lint::{DMLStyleError, RuleType};
 use super::indentation::IndentParenExprArgs;
 use super::Rule;
@@ -212,5 +213,80 @@ impl FuncCallBreakOnOpenParenRule {
                 }
             }
         }
+    }
+}
+
+pub struct ConditionalExpressionBreakBeforeOperatorRule {
+    pub enabled: bool,
+}
+
+pub struct ConditionalExpressionBreakBeforeOperatorArgs {
+    pub left: ZeroRange,
+    pub left_operation: ZeroRange,
+    pub middle: ZeroRange,
+    pub right_operation: ZeroRange,
+    pub right: ZeroRange
+}
+
+
+impl ConditionalExpressionBreakBeforeOperatorArgs {
+    pub fn from_tertiary_expression(node: &TertiaryExpressionContent) 
+        -> Option<ConditionalExpressionBreakBeforeOperatorArgs> {
+        Some(ConditionalExpressionBreakBeforeOperatorArgs {
+            left: node.left.range(),
+            left_operation: node.left_operation.range(),
+            middle: node.middle.range(),
+            right_operation: node.right_operation.range(),
+            right: node.right.range(),
+        })
+    }
+}
+
+impl ConditionalExpressionBreakBeforeOperatorRule {
+    pub fn from_options(options: &Option<ConditionalExpressionBreakBeforeOperatorOptions>) -> ConditionalExpressionBreakBeforeOperatorRule {
+        match options {
+            Some(_options) => ConditionalExpressionBreakBeforeOperatorRule {
+                enabled: true,
+            },
+            None => ConditionalExpressionBreakBeforeOperatorRule {
+                enabled: false,
+            }
+        }
+    }
+
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>, args: Option<ConditionalExpressionBreakBeforeOperatorArgs>) {
+        if !self.enabled { return; }
+        let Some(args) = args else { return; };
+        let has_multiple_lines_left = args.left.row_start.0 != args.left.row_end.0;
+        let has_multiple_lines_middle = args.middle.row_start != args.middle.row_end;
+        let has_multiple_lines_right = args.right.row_start != args.right.row_end;
+        let has_break_after_question_operator = args.left_operation.row_end.0 != args.middle.row_start.0;
+        let has_break_after_colon_operator = args.middle.row_end.0 != args.right_operation.row_start.0;
+        if has_multiple_lines_left {
+            acc.push(self.create_err(args.left));
+        }
+        if has_multiple_lines_middle || has_break_after_question_operator {
+            acc.push(self.create_err(args.middle));
+        }
+        if has_multiple_lines_right || has_break_after_colon_operator {
+            acc.push(self.create_err(args.right));
+        }
+    }
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ConditionalExpressionBreakBeforeOperatorOptions{
+}
+
+impl Rule for ConditionalExpressionBreakBeforeOperatorRule {
+    fn name() -> &'static str {
+        "COND_EXPRESSION_BREAK_BEFORE_OPERATOR"
+    }
+    fn description() -> &'static str {
+        "Break conditional expressions before the ?, or both before the ? and before the :."
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::LL3
     }
 }

@@ -25,7 +25,7 @@ use crate::lint::{DMLStyleError,
                                     CurrentRules},
                                     AuxParams};
 use crate::lint::rules::indentation::IndentParenExprArgs;
-use crate::lint::rules::linebreaking::FuncCallBreakOnOpenParenArgs;
+use crate::lint::rules::linebreaking::{ConditionalExpressionBreakBeforeOperatorArgs, FuncCallBreakOnOpenParenArgs};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnaryExpressionContent {
@@ -151,6 +151,10 @@ impl TreeElement for TertiaryExpressionContent {
     fn subs(&self) -> TreeElements<'_> {
         create_subs!(&self.left, &self.left_operation,
                      &self.middle, &self.right_operation, &self.right)
+    }
+    fn evaluate_rules(&self, acc: &mut Vec<DMLStyleError>, rules: &CurrentRules, aux: AuxParams) {
+        rules.conditional_expression_break_before_op
+            .check(acc, ConditionalExpressionBreakBeforeOperatorArgs::from_tertiary_expression(self));
     }
 }
 
