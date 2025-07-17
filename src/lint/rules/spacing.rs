@@ -6,10 +6,7 @@ use crate::analysis::parsing::types::{BitfieldsContent, LayoutContent,
 use crate::lint::{rules::{Rule, RuleType},
                   DMLStyleError};
 use crate::analysis::parsing::tree::{TreeElement, ZeroRange};
-use crate::analysis::parsing::expression::{BinaryExpressionContent,
-                                           FunctionCallContent, IndexContent,
-                                           PostUnaryExpressionContent,
-                                           UnaryExpressionContent};
+use crate::analysis::parsing::expression::{BinaryExpressionContent, FunctionCallContent, IndexContent, PostUnaryExpressionContent, TertiaryExpressionContent, UnaryExpressionContent};
 use crate::analysis::parsing::statement::{CompoundContent,
                                           ExpressionStmtContent,
                                           IfContent, VariableDeclContent};
@@ -171,6 +168,66 @@ impl Rule for SpBinopRule {
     }
     fn get_rule_type() -> RuleType {
         RuleType::SpBinop
+    }
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SpTernaryOptions {}
+pub struct SpTernaryRule {
+    pub enabled: bool,
+}
+pub struct SpTernaryArgs {
+    left: ZeroRange,
+    left_op: ZeroRange,
+    middle: ZeroRange,
+    right_op: ZeroRange,
+    right: ZeroRange,
+}
+impl SpTernaryArgs {
+    pub fn from_tertiary_expression_content(node: &TertiaryExpressionContent) -> Option<SpTernaryArgs> {
+        Some(SpTernaryArgs {
+            left: node.left.range(),
+            left_op: node.left_operation.range(),
+            middle: node.middle.range(),
+            right_op: node.right_operation.range(),
+            right: node.right.range(),
+        })
+    }
+}
+fn no_gap(left: ZeroRange, right: ZeroRange) -> bool {
+    left.row_end == right.row_start
+        && left.col_end == right.col_start
+}
+impl SpTernaryRule {
+    pub fn check(&self, acc: &mut Vec<DMLStyleError>,
+        ranges: Option<SpTernaryArgs>) {
+        if !self.enabled { return; }
+        if let Some(SpTernaryArgs { left, left_op, middle, right_op, right }) = ranges {
+            if no_gap(left, left_op) {
+                acc.push(self.create_err(left));
+            }
+            if no_gap(left_op, middle) {
+                acc.push(self.create_err(middle));
+            }
+            if no_gap(middle, right_op) {
+                acc.push(self.create_err(middle));
+            }
+            if no_gap(right_op, right) {
+                acc.push(self.create_err(right));
+            }
+        }
+    }
+}
+impl Rule for SpTernaryRule {
+    fn name() -> &'static str {
+        "SP_TERNARY"
+    }
+    fn description() -> &'static str {
+        "Missing space around ? or : in conditional expression"
+    }
+    fn get_rule_type() -> RuleType {
+        RuleType::SpTernary
     }
 }
 

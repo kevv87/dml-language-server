@@ -5,6 +5,7 @@ mod nsp_unary;
 mod sp_braces;
 mod sp_punct;
 mod sp_binop;
+mod sp_ternary;
 
 // Put whitespace (space or newline):
 //  SP.reserved around reserved words, such as if, else, default,
@@ -16,14 +17,6 @@ method this_is_some_method() {
 local int this_some_integer = 0x666;
 if(this_some_integer == 0x666)
     return;
-}
-";
-
-//  SP.ternary around ? and : in the ternary ?: operator
-#[allow(dead_code)]
-static SP_TERNARY: &str = "
-method this_is_some_method(bool flag) {
-local int this_some_integer = (flag?5:7));
 }
 ";
 

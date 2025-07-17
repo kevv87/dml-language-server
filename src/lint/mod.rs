@@ -2,6 +2,7 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
+use rules::spacing::SpTernaryOptions;
 use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules, RuleType};
 use rules::{spacing::{SpBraceOptions, SpPunctOptions, SpBinopOptions, NspFunparOptions,
@@ -52,6 +53,8 @@ pub struct LintCfg {
     #[serde(default)]
     pub sp_binop: Option<SpBinopOptions>,
     #[serde(default)]
+    pub sp_ternary: Option<SpTernaryOptions>,
+    #[serde(default)]
     pub nsp_funpar: Option<NspFunparOptions>,
     #[serde(default)]
     pub nsp_inparen: Option<NspInparenOptions>,
@@ -83,6 +86,7 @@ impl Default for LintCfg {
             sp_brace: Some(SpBraceOptions{}),
             sp_punct: Some(SpPunctOptions{}),
             sp_binop: Some(SpBinopOptions{}),
+            sp_ternary: Some(SpTernaryOptions{}),
             nsp_funpar: Some(NspFunparOptions{}),
             nsp_inparen: Some(NspInparenOptions{}),
             nsp_unary: Some(NspUnaryOptions{}),
