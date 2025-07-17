@@ -4,8 +4,17 @@ use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
 use rules::{instantiate_rules, CurrentRules, RuleType};
-use rules::{spacing::{SpReservedOptions, SpBraceOptions, SpPunctOptions, NspFunparOptions,
-                      NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
+use rules::{spacing::{SpReservedOptions,
+                      SpBraceOptions,
+                      SpPunctOptions,
+                      SpBinopOptions,
+                      NspFunparOptions,
+                      SpTernaryOptions,
+                      SpPtrDeclOptions,
+                      NspPtrDeclOptions,
+                      NspInparenOptions,
+                      NspUnaryOptions,
+                      NspTrailingOptions},
             indentation::{LongLineOptions, IndentSizeOptions, IndentCodeBlockOptions,
                           IndentNoTabOptions, IndentClosingBraceOptions, IndentParenExprOptions,
                           IndentSwitchCaseOptions, IndentEmptyLoopOptions},
@@ -53,6 +62,14 @@ pub struct LintCfg {
     #[serde(default)]
     pub sp_punct: Option<SpPunctOptions>,
     #[serde(default)]
+    pub sp_binop: Option<SpBinopOptions>,
+    #[serde(default)]
+    pub sp_ternary: Option<SpTernaryOptions>,
+    #[serde(default)]
+    pub sp_ptrdecl: Option<SpPtrDeclOptions>,
+    #[serde(default)]
+    pub nsp_ptrdecl: Option<NspPtrDeclOptions>,
+    #[serde(default)]
     pub nsp_funpar: Option<NspFunparOptions>,
     #[serde(default)]
     pub nsp_inparen: Option<NspInparenOptions>,
@@ -84,6 +101,10 @@ impl Default for LintCfg {
             sp_reserved: Some(SpReservedOptions{}),
             sp_brace: Some(SpBraceOptions{}),
             sp_punct: Some(SpPunctOptions{}),
+            sp_binop: Some(SpBinopOptions{}),
+            sp_ternary: Some(SpTernaryOptions{}),
+            sp_ptrdecl: Some(SpPtrDeclOptions{}),
+            nsp_ptrdecl: Some(NspPtrDeclOptions{}),
             nsp_funpar: Some(NspFunparOptions{}),
             nsp_inparen: Some(NspInparenOptions{}),
             nsp_unary: Some(NspUnaryOptions{}),
