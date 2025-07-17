@@ -1,6 +1,3 @@
-use crate::lint::rules::tests::common::assert_snippet;
-use crate::lint::rules::instantiate_rules;
-use crate::lint::LintCfg;
 mod nsp_funpar;
 mod nsp_inparen;
 mod nsp_ptrdecl;
@@ -25,15 +22,6 @@ if(this_some_integer == 0x666)
 }
 ";
 
-//  SP.ptrdecl between a type and the * marking a pointer
-#[allow(dead_code)]
-static SP_PTRDECL: &str = "
-method this_is_some_method(conf_object_t* dummy_obj) {
-if(!dummy_obj)
-    return;
-}
-";
-
 //  SP.comment around the comment delimiters //, /* and **/
 #[allow(dead_code)]
 static SP_COMMENT: &str = "
@@ -45,11 +33,3 @@ if(!dummy_obj)//Not null
 }
 ";
 
-//  NSP.ptrdecl after the * marking a pointer in a declaration
-#[allow(dead_code)]
-static NSP_PTRDECL: &str = "
-method this_is_some_method(conf_object_t * dummy_obj) {
-if(!dummy_obj)
-    return;
-}
-";
