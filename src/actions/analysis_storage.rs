@@ -2,27 +2,26 @@
 //  SPDX-License-Identifier: Apache-2.0 and MIT
 //! Stores currently completed analysis.
 
-use log::{debug, error, trace, info};
+use log::{debug, trace, info};
 
 use crossbeam::channel;
 
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
-use crate::actions::progress::{DiagnosticsNotifier,
-                               AnalysisDiagnosticsNotifier};
-use crate::analysis::scope::ContextedSymbol;
+use crate::actions::ContextDefinition;
+use crate::analysis::scope::{ContextedSymbol, ContextKey};
 use crate::analysis::structure::objects::Import;
 use crate::analysis::{IsolatedAnalysis, DeviceAnalysis, DMLError};
 
 use crate::lsp_data::*;
 use crate::analysis::parsing::tree::{ZeroSpan, ZeroFilePosition};
 use crate::analysis::reference::Reference;
-use crate::server::{Output, ServerToHandle};
-use crate::Span;
+use crate::server::ServerToHandle;
 
 use crate::lint::LinterAnalysis;
 
@@ -117,6 +116,8 @@ pub struct AnalysisStorage {
             CanonPath, TimestampedStorage<LinterAnalysis>>,
     // Maps file paths to device paths that depend on them
     pub device_triggers: HashMap<CanonPath, HashSet<CanonPath>>,
+    // The inverse of the above
+    pub device_dependencies: HashMap<CanonPath, HashSet<CanonPath>>,
 
     pub dependencies: AnalysisDirectDependencies,
     pub import_map: AnalysisImportMap,
@@ -131,6 +132,32 @@ pub fn timestamp_is_newer(later: SystemTime, previous: SystemTime) -> bool {
     previous.duration_since(later).is_err()
 }
 
+#[derive(Debug)]
+pub enum AnalysisLookupError {
+    NoIsolatedAnalysis,
+    NoLintAnalysis,
+    NoDeviceAnalysis,
+    NoFile,
+}
+
+impl std::fmt::Display for AnalysisLookupError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoIsolatedAnalysis => write!(f, "No Isolated Analysis Found"),
+            Self::NoLintAnalysis => write!(f, "No Linting Analysis Found"),
+            Self::NoDeviceAnalysis => write!(f, "No Device Analysis Found"),
+            Self::NoFile => write!(f, "The file requested for could not be found"),
+        }
+    }
+}
+
+impl Error for AnalysisLookupError {}
+
+// (IsolatedErrors, SemanticErrors, LintErrors)
+pub type FilteredErrors = (HashMap<PathBuf, HashSet<DMLError>>,
+                           HashMap<PathBuf, HashSet<DMLError>>,
+                           HashMap<PathBuf, HashSet<DMLError>>);
+
 impl AnalysisStorage {
     pub fn manipulate_isolated_analysises(&mut self) ->
         HashMap<&CanonPath, &mut IsolatedAnalysis> {
@@ -144,12 +171,25 @@ impl AnalysisStorage {
                 |(p, tss)|(p, &tss.stored)).collect()
         }
 
-    pub fn all_device_analysises_containing_file(
-        &self, path: &CanonPath) -> Vec<&DeviceAnalysis>{
-        self.device_triggers.get(path).map(
-            |triggers|triggers.iter().filter_map(|p|self.get_device_analysis(p))
-                .collect())
+    pub fn filtered_device_analysises_containing_file(
+        &self,
+        path: &CanonPath,
+        filter: Option<&HashSet<ContextDefinition>>)
+        -> Vec<&DeviceAnalysis>{
+        self.device_triggers.get(path)
+            .map(|triggers|triggers.iter()
+                 .filter(
+                     |p|filter.map_or(
+                         true,
+                         |f|f.contains(&ContextDefinition::Device((*p).clone()))))
+                 .filter_map(|p|self.get_device_analysis(p).ok())
+                 .collect())
             .unwrap_or_else(||vec![])
+    }
+
+    pub fn all_device_analysises_containing_file(
+        &self, path: &CanonPath) -> Vec<&DeviceAnalysis> {
+        self.filtered_device_analysises_containing_file(path, None)
     }
 
     pub fn init(notify: channel::Sender<ServerToHandle>) -> Self {
@@ -162,6 +202,7 @@ impl AnalysisStorage {
             isolated_analysis: HashMap::default(),
             device_analysis:  HashMap::default(),
             device_triggers:  HashMap::default(),
+            device_dependencies: HashMap::default(),
             dependencies: HashMap::default(),
             import_map: HashMap::default(),
             unresolved_dependency: HashMap::default(),
@@ -170,24 +211,34 @@ impl AnalysisStorage {
         }
     }
 
-    pub fn context_symbol_at_pos<'t>(&'t self, pos: &ZeroFilePosition)
-                                     -> Option<ContextedSymbol<'t>> {
-        let analysis = self.get_isolated_analysis(
-            &CanonPath::from_path_buf(pos.path())?)?;
-        let mut context = analysis.lookup_context_symbol(pos);
-        // Patch out leading 'device' context, unneeded
-        if let Some(ref mut ic) = context {
-            ic.remove_head_context();
+    pub fn context_symbol_at_pos<'t>(&'t self, pos: &ZeroFilePosition) ->
+        Result<Option<ContextedSymbol<'t>>, AnalysisLookupError> {
+            let canon_path = CanonPath::from_path_buf(pos.path())
+                .ok_or(AnalysisLookupError::NoFile)?;
+            let analysis = self.get_isolated_analysis(&canon_path)?;
+            let mut context = analysis.lookup_context_symbol(pos);
+            // Patch out leading 'device' context, unneeded
+            if let Some(ref mut ic) = context {
+                ic.remove_head_context();
+            }
+            Ok(context)
         }
-        context
-    }
 
-    pub fn reference_at_pos(&self, pos: &ZeroFilePosition)
-                            -> Option<&Reference> {
-        let analysis = self.get_isolated_analysis(
-            &CanonPath::from_path_buf(pos.path())?)?;
-        analysis.lookup_reference(pos)
-    }
+    pub fn reference_at_pos(&self, pos: &ZeroFilePosition) ->
+        Result<Option<&Reference>, AnalysisLookupError> {
+            let canon_path = CanonPath::from_path_buf(pos.path())
+                .ok_or(AnalysisLookupError::NoFile)?;
+            let analysis = self.get_isolated_analysis(&canon_path)?;
+            Ok(analysis.lookup_reference(pos))
+        }
+
+    pub fn first_context_at_pos(&self, pos: &ZeroFilePosition) ->
+        Result<Option<ContextKey>, AnalysisLookupError> {
+            let canon_path = CanonPath::from_path_buf(pos.path())
+                .ok_or(AnalysisLookupError::NoFile)?;
+            let analysis = self.get_isolated_analysis(&canon_path)?;
+            Ok(analysis.lookup_first_context(pos))
+        }
 
     pub fn has_client_file(&self, path: &Path) -> bool {
         self.isolated_analysis.keys().any(
@@ -310,6 +361,17 @@ impl AnalysisStorage {
                 let entry = self.device_triggers
                     .entry(trigger_path.clone()).or_default();
                 entry.insert((*device).clone());
+            }
+        }
+
+        // rebuild dependencies
+        // TODO: this could be optimized by folding it into the logic above,
+        // but I cannot imagine it's worth the hassle
+        self.device_dependencies.clear();
+        for (path, devices) in &self.device_triggers {
+            for device in devices {
+                self.device_dependencies.entry(device.clone())
+                    .or_default().insert(path.clone());
             }
         }
     }
@@ -517,17 +579,18 @@ impl AnalysisStorage {
                self.device_analysis.keys().collect::<Vec<&CanonPath>>());
     }
 
-    pub fn get_linter_analysis<'a>(&'a mut self, path: &Path)
-                                     -> Option<&'a LinterAnalysis> {
-        trace!("Looking for linter analysis of {:?}", path);
-        let analysis = self.lint_analysis.get(
-            &CanonPath::from_path_buf(path.to_path_buf())?).map(
-            |storage|&storage.stored);
-        if analysis.is_none() {
-            trace!("Failed to find linter analysis");
+    pub fn get_linter_analysis<'a>(&'a self, path: &CanonPath) ->
+        Result<&'a LinterAnalysis, AnalysisLookupError> {
+            trace!("Looking for linter analysis of {:?}", path);
+            let analysis = self.lint_analysis.get(path)
+                .map(|storage|&storage.stored)
+                .ok_or(AnalysisLookupError::NoLintAnalysis);
+            if analysis.is_err() {
+                trace!("Failed to find linter analysis");
+            }
+            analysis
         }
-        analysis
-    }
+
     pub fn discard_overly_old_analysis(&mut self, max_age: Duration) {
         let now = SystemTime::now();
         for path in self.last_use.keys().cloned().collect::<Vec<CanonPath>>() {
@@ -541,18 +604,19 @@ impl AnalysisStorage {
         }
     }
 
-    pub fn get_isolated_analysis<'a>(&'a self, path: &CanonPath)
-                                     -> Option<&'a IsolatedAnalysis> {
-        trace!("Looking for isolated analysis of {}", path.as_str());
-        let analysis = self.isolated_analysis.get(path).map(
-            |storage|&storage.stored);
-        if analysis.is_none() {
-            trace!("Failed to find isolated analysis");
-        } else {
-            self.update_last_use(path);
+    pub fn get_isolated_analysis<'a>(&'a self, path: &CanonPath) ->
+        Result<&'a IsolatedAnalysis, AnalysisLookupError> {
+            trace!("Looking for isolated analysis of {}", path.as_str());
+            let analysis = self.isolated_analysis.get(path)
+                .map(|storage|&storage.stored)
+                .ok_or(AnalysisLookupError::NoIsolatedAnalysis);
+            if analysis.is_err() {
+                trace!("Failed to find isolated analysis");
+            } else {
+                self.update_last_use(path);
+            }
+            analysis
         }
-        analysis
-    }
 
     fn update_last_use(&self, path: &CanonPath) {
         if let Some(mut_lock) = self.last_use.get(path) {
@@ -562,25 +626,26 @@ impl AnalysisStorage {
         }
     }
 
-    pub fn get_device_analysis<'a>(&'a self, path: &CanonPath)
-                                   -> Option<&'a DeviceAnalysis> {
-        trace!("Looking for device analysis of {:?}", path);
-        let analysis = self.device_analysis.get(path)
-            .map(|storage|&storage.stored);
-        if analysis.is_none() {
-            trace!("Failed to find device analysis");
-        } else {
-            for p in self.dependencies.get(path)
-                .map_or_else(||vec![],
-                             |map|map.values().collect())
-                .into_iter()
-                .flat_map(|set|set.iter())
-            {
-                self.update_last_use(p);
+    pub fn get_device_analysis<'a>(&'a self, path: &CanonPath) ->
+        Result<&'a DeviceAnalysis, AnalysisLookupError> {
+            trace!("Looking for device analysis of {:?}", path);
+            let analysis = self.device_analysis.get(path)
+                .map(|storage|&storage.stored)
+                .ok_or(AnalysisLookupError::NoDeviceAnalysis);
+            if analysis.is_err() {
+                trace!("Failed to find device analysis");
+            } else {
+                for p in self.dependencies.get(path)
+                    .map_or_else(||vec![],
+                                 |map|map.values().collect())
+                    .into_iter()
+                    .flat_map(|set|set.iter())
+                {
+                    self.update_last_use(p);
+                }
             }
+            analysis
         }
-        analysis
-    }
 
     pub fn mark_file_dirty(&mut self, path: &CanonPath) {
         trace!("Marked {} as dirty", path.as_str());
@@ -628,73 +693,58 @@ impl AnalysisStorage {
         }
     }
 
-    pub fn report_errors<O: Output>(&mut self, path: &CanonPath, output: &O) {
-        debug!("Reporting all errors for {:?}", path);
+    pub fn gather_errors(&mut self, filter: Option<&HashSet<ContextDefinition>>)
+                         -> FilteredErrors {
         // By this being a hashset, we will not double-report any errors
-        let mut dmlerrors:HashMap<PathBuf, HashSet<DMLError>>
+        let mut isolated_errors: HashMap<PathBuf, HashSet<DMLError>>
             = HashMap::default();
-        let all_files: HashSet<CanonPath> =
-            self.get_file_contexts(path).iter().flat_map(
-                |c|self.all_dependencies(path, c.as_ref())
-                    .into_iter()).collect();
+        let mut device_errors: HashMap<PathBuf, HashSet<DMLError>>
+            = HashMap::default();
+        let mut lint_errors: HashMap<PathBuf, HashSet<DMLError>>
+            = HashMap::default();
+        let all_files: HashSet<&CanonPath> =
+            self.device_analysis.keys()
+            .chain(self.isolated_analysis.keys())
+            .chain(self.lint_analysis.keys())
+            .collect();
         for file in all_files {
-            if let Some((file, errors))
-                = self.gather_local_errors(&file) {
-                    dmlerrors.entry(file)
-                        .or_default()
-                        .extend(errors.into_iter());
-                }
-            dmlerrors.entry(file.to_path_buf())
-                .or_default()
-                .extend(self
-                    .gather_linter_errors(&file).into_iter());
-        }
-        for (file, errors) in self.gather_device_errors(path) {
-            dmlerrors.entry(file.clone())
-                .or_default()
-                .extend(errors.into_iter());
-            if !self.has_client_file(&PathBuf::from("dml-builtins.dml")) {
-                dmlerrors.get_mut(&file).unwrap().insert(
-                    DMLError {
-                        span: ZeroSpan::invalid(&file),
-                        description: "Could not find required builtin \
-                                      file 'dml-builtins.dml'".to_string(),
-                        related: vec![],
-                        severity: Some(DiagnosticSeverity::ERROR),
-                    });
+            if let Some((ifile, ierrors)) = self.gather_local_errors(file) {
+                isolated_errors.entry(ifile)
+                    .or_default()
+                    .extend(ierrors.into_iter());
             }
-        }
 
-        let notifier = AnalysisDiagnosticsNotifier::new("indexing".to_string(),
-                                                        output.clone());
-        notifier.notify_begin_diagnostics();
-        for (file, errors) in dmlerrors {
-            debug!("Reporting errors for {:?}", file);
-            let mut sorted_errors: Vec<DMLError> = errors.into_iter().collect();
-            // Sort by line
-            sorted_errors.sort_unstable_by(
-                |e1, e2|if e1.span.range > e2.span.range {
-                    Ordering::Greater
-                } else {
-                    Ordering::Less
-                });
-            match parse_uri(file.to_str().unwrap()) {
-                Ok(url) => notifier.notify_publish_diagnostics(
-                    PublishDiagnosticsParams::new(
-                        url,
-                        sorted_errors.iter()
-                            .map(DMLError::to_diagnostic).collect(),
-                        None)),
-                // The Url crate does not report interesting errors
-                Err(_) => error!("Could not convert {:?} to Url", file),
+            lint_errors.entry(file.clone().into())
+                .or_default()
+                .extend(self.gather_linter_errors(file).into_iter());
+
+            // Only report device errors if this analysis context is active
+            if filter.map_or(true, |f|f.contains(&file.clone().into())) {
+                for (dfile, errors) in self.gather_device_errors(file) {
+                    device_errors.entry(file.clone().into())
+                    .or_default()
+                    .extend(errors.into_iter());
+                    if !self.has_client_file(&PathBuf::from("dml-builtins.dml")) {
+                        device_errors.entry(dfile.clone())
+                            .or_default().insert(
+                                DMLError {
+                                    span: ZeroSpan::invalid(dfile.clone()),
+                                    description: "Could not find required builtin \
+                                                  file 'dml-builtins.dml'".to_string(),
+                                    related: vec![],
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                });
+                    }
+                }
             }
         }
-        notifier.notify_end_diagnostics();
+        (isolated_errors, device_errors, lint_errors)
     }
 
-    pub fn gather_linter_errors(&mut self,
-                               path: &CanonPath) -> Vec<DMLError> {
-        if let Some(linter_analysis) = self.get_linter_analysis(path) {
+    pub fn gather_linter_errors(&self, path: &CanonPath) -> Vec<DMLError> {
+        // This is not a user-initiated request, so it's ok to drop
+        // the error here
+        if let Ok(linter_analysis) = self.get_linter_analysis(path) {
             linter_analysis.errors.clone()
         } else {
             vec![]
@@ -703,39 +753,19 @@ impl AnalysisStorage {
 
     pub fn gather_local_errors(&self, path: &CanonPath)
                                -> Option<(PathBuf, Vec<DMLError>)> {
-
+        // This is not a user-initiated request, so it's ok to drop
+        // the error here
         self.get_isolated_analysis(path)
+            .ok()
             .map(|a|(a.clientpath.clone(), a.errors.clone()))
     }
 
     pub fn gather_device_errors(&self, path: &CanonPath)
                                 -> HashMap<PathBuf, Vec<DMLError>> {
-        self.get_device_analysis(path).map_or(HashMap::default(),
-                                              |a|a.errors.clone())
-    }
-
-    pub fn errors(&mut self, span: &Span) -> Vec<DMLError> {
-        trace!("Reporting errors at {:?} for {:?}", span.range, span.file);
-        let real_file = if let Some(file) = CanonPath::from_path_buf(
-            span.path()) {
-            file
-        } else {
-            error!("Could not resolve {:?} to point to a real file", span);
-            return vec![];
-        };
-        if let Some(isolated_analysis) =
-            self.get_isolated_analysis(&real_file) {
-            // Obtain any error which at least partially overlaps our span
-            let mut errors = vec![];
-            for error in &isolated_analysis.errors {
-                if error.span.range.overlaps(span.range) {
-                    errors.push(error.clone())
-                }
-            }
-            errors
-        } else {
-            trace!("lacked analysis");
-            vec![]
-        }
+        // This is not a user-initiated request, so it's ok to drop
+        // the error here
+        self.get_device_analysis(path)
+            .ok()
+            .map_or(HashMap::default(),|a|a.errors.clone())
     }
 }

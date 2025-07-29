@@ -93,12 +93,35 @@ impl<T> AsRef<T> for Inferrable<T> {
     }
 }
 
+/// When to include a new device analysis into already opened
+/// common-code files that already have an active device context
+// TODO: support for non-all mode
+// NOTE: future synthetic isolated context settings are NOT included here
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub enum DeviceContextMode {
+    // By default, every encountered context will be marked as being
+    // reported for
+    Always,
+    // If a device context directly or indirectly imports any file
+    // that is not included from an already active device context,
+    // we activate the new context
+    AnyNew,
+    // If the device is in the same or child directory as an activated context,
+    // or if an activated context is in a child directory of the device,
+    // we active it
+    SameModule,
+    // Only active a device context if ALL the files it imports do not have any
+    // device contexts active
+    First,
+    // Never active any device contexts automatically
+    Never,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(missing_docs)]
 #[serde(default)]
 pub struct Config {
-    // Currently no effect
-    pub show_warnings: bool,
+    pub show_warnings: WarningFrequency,
     /// `true` to analyzes only on save, not on change
     /// Default: `false`.
     pub analyse_on_save: bool,
@@ -107,25 +130,96 @@ pub struct Config {
     pub suppress_imports: bool,
     pub linting_enabled: bool,
     pub lint_cfg_path: Option<PathBuf>,
+    pub lint_direct_only: bool,
     pub no_default_features: bool,
     // pub jobs: Option<u32>,
     pub compile_info_path: Option<PathBuf>,
     pub analysis_retain_duration: Option<f64>,
+    pub new_device_context_mode: DeviceContextMode,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum WarningFrequency {
+    Never,
+    Always,
+    Once,
+}
+
+impl serde::Serialize for WarningFrequency {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        serializer.serialize_str(match self {
+            WarningFrequency::Never => "never",
+            WarningFrequency::Always => "always",
+            WarningFrequency::Once => "once",
+        })
+    }
+}
+
+struct WarningFrequencyVisitor;
+
+impl <'de> serde::de::Visitor<'de> for WarningFrequencyVisitor {
+    type Value = WarningFrequency;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>)
+                 -> std::fmt::Result {
+        formatter.write_str("a valid WarningFrequency string \
+                             ('always', 'once', 'never')")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<WarningFrequency, E>
+    where
+        E: serde::de::Error,
+    {
+        match value.to_lowercase().as_str() {
+            "never" | "false" => Ok(WarningFrequency::Never),
+            "once" => Ok(WarningFrequency::Once),
+            "always" | "true" => Ok(WarningFrequency::Always),
+            _ => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(value),
+                &"Invalid value for WarningFrequency \
+                  (valid: never|once|always)"))
+        }
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<WarningFrequency, E>
+    where
+        E: serde::de::Error,
+    {
+        if value {
+            Ok(WarningFrequency::Always)
+        } else {
+            Ok(WarningFrequency::Never)
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for WarningFrequency {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        deserializer.deserialize_any(WarningFrequencyVisitor)
+    }
 }
 
 impl Default for Config {
     fn default() -> Config {
         Config {
-            show_warnings: true,
+            show_warnings: WarningFrequency::Always,
             analyse_on_save: false,
             features: vec![],
             all_features: false,
             suppress_imports: false,
             linting_enabled: true,
             lint_cfg_path: None,
+            lint_direct_only: true,
             no_default_features: false,
             compile_info_path: None,
             analysis_retain_duration: None,
+            new_device_context_mode: DeviceContextMode::Always,
         }
     }
 }

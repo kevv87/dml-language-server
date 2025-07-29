@@ -3,15 +3,20 @@
 //! Requests that the DLS can respond to.
 
 use jsonrpc::error::{StandardError, standard_error};
-use log::{info, debug, error, trace};
+use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 
 use crate::actions::hover;
-use crate::actions::InitActionContext;
+use crate::actions::{AnalysisProgressKind, AnalysisWaitKind,
+                     AnalysisCoverageSpec,
+                     ContextDefinition, InitActionContext};
+use crate::actions::notifications::ContextDefinitionKindParam;
 use crate::analysis::{ZeroSpan, ZeroFilePosition, SymbolRef};
+use crate::analysis::reference::ReferenceKind;
 use crate::analysis::symbols::SimpleSymbol;
 
 pub use crate::lsp_data::request::{
@@ -35,33 +40,124 @@ pub use crate::lsp_data::request::{
 };
 
 pub use crate::lsp_data::{self as lsp_data, *};
-use crate::analysis::{Named, DeclarationSpan, LocationSpan};
+use crate::analysis::{Named, DeclarationSpan, LocationSpan,
+                      DLSLimitation, ISOLATED_TEMPLATE_LIMITATION};
 use crate::analysis::structure::objects::CompObjectKind;
 
 use crate::analysis::scope::{SymbolContext, SubSymbol, ContextKey, Scope};
 use crate::analysis::symbols::{DMLSymbolKind, StructureSymbol};
+use crate::actions::analysis_storage::AnalysisLookupError;
+use crate::config::WarningFrequency;
 use crate::file_management::CanonPath;
 use crate::server;
 use crate::server::{Ack, Output, Request, RequestAction,
-                    ResponseError, ResponseWithMessage};
+                    Response, ResponseError, ResponseWithMessage};
 
-fn fp_to_symbol_refs(fp: &ZeroFilePosition, ctx: &InitActionContext)
-                     -> Option<Vec<SymbolRef>> {
+// Gives a slightly-better error message than the short-form one specified by
+// the error.
+fn warn_miss_lookup(error: AnalysisLookupError, file: Option<&str>) {
+    match error {
+        AnalysisLookupError::NoFile =>
+            error!(
+                "Could not find a real file corresponding to '{}'",
+                if let Some(f) = file { f.to_string() }
+                else { "the opened file".to_string() }),
+        AnalysisLookupError::NoIsolatedAnalysis =>
+            warn!(
+                "No syntactical analysis available{}",
+                if let Some(f) = file { format!(" for the file '{}'", f) }
+                else { "".to_string() }),
+        AnalysisLookupError::NoLintAnalysis =>
+            warn!(
+                "No linting analysis available{}",
+                if let Some(f) = file { format!(" for the file '{}'", f) }
+                else { "".to_string() }),
+        AnalysisLookupError::NoDeviceAnalysis =>
+            warn!(
+                "No semantic analysis available{}, may need to open a file \
+                 with a 'device' declaration that imports{}, directly or \
+                 indirectly.",
+                if let Some(f) = file { format!(" that includes the file '{}'", f) }
+                else { "".to_string() },
+                if file.is_some() { " it".to_string() }
+                else { " your file".to_string() }),
+    }
+}
+
+fn response_maybe_with_limitations<I, R>(
+    path: &Path,
+    response: R,
+    limitations: I,
+    ctx: &InitActionContext)
+    -> ResponseWithMessage<R>
+where
+     I: IntoIterator<Item = DLSLimitation>,
+     R: Response + std::fmt::Debug + Serialize
+{
+    let filtered_limitations =
+        match ctx.config.lock().unwrap().show_warnings {
+            WarningFrequency::Never => vec![],
+            WarningFrequency::Once => {
+                let filtered = limitations.into_iter()
+                    .filter(|lim|
+                            !ctx.sent_warnings.lock().unwrap()
+                            .contains(&(lim.issue_num, path.to_path_buf())))
+                    .collect::<Vec<_>>();
+                ctx.sent_warnings.lock().unwrap()
+                    .extend(filtered.iter().map(
+                        |lim|(lim.issue_num, path.to_path_buf())));
+                filtered
+            },
+            _ => limitations.into_iter().collect(),
+        };
+    let formatted = "The DML Language server could only obtain partial results \
+                     due to internal limitations:";
+    let collect = filtered_limitations.into_iter().map(|lim|lim.to_string())
+        .collect::<Vec<String>>().join("\n -");
+    if collect.is_empty() {
+        response.into()
+    } else {
+        ResponseWithMessage::Warn(
+            response,
+            format!("{}\n- {}", formatted, collect))
+    }
+}
+
+
+pub const TYPE_SEMANTIC_LIMITATION: DLSLimitation = DLSLimitation {
+    issue_num: 65,
+    description: "The DLS does not currently support semantic analysis of \
+                  types, including reference finding",
+};
+
+// TODO: This function is getting bloated, refactor into several smaller ones
+fn fp_to_symbol_refs(fp: &ZeroFilePosition,
+                     ctx: &InitActionContext,
+                     relevant_limitations: &mut HashSet<DLSLimitation>)
+                     -> Result<Vec<SymbolRef>, AnalysisLookupError> {
     let analysis = ctx.analysis.lock().unwrap();
     // This step-by-step approach could be folded into analysis_storage,
     // but I keep it as separate here so that we could, perhaps,
     // returns different information for "no symbols found" and
     // "no info at pos"
     debug!("Looking up symbols/references at {:?}", fp);
-    let (context_sym, reference) = (analysis.context_symbol_at_pos(fp),
-                                    analysis.reference_at_pos(fp));
+    let (context_sym, reference) = (analysis.context_symbol_at_pos(fp)?,
+                                    analysis.reference_at_pos(fp)?);
     debug!("Got {:?} and {:?}", context_sym, reference);
-
+    let canon_path = CanonPath::from_path_buf(fp.path()).unwrap();
+    // Rather than holding the lock throughout the request, clone
+    // the filter
+    let filter = Some(ctx.device_active_contexts.lock().unwrap().clone());
     let mut definitions = vec![];
+    let analysises = analysis.all_device_analysises_containing_file(
+        &CanonPath::from_path_buf(fp.path()).unwrap());
+    if analysises.is_empty() {
+        return Err(AnalysisLookupError::NoDeviceAnalysis);
+    }
     match (context_sym, reference) {
         (None,  None) => {
             debug!("No symbol or reference at point");
-            return None;
+            return Ok(vec![]);
         },
         (Some(sym), refer) => {
             if refer.is_some() {
@@ -69,18 +165,42 @@ fn fp_to_symbol_refs(fp: &ZeroFilePosition, ctx: &InitActionContext)
                         (reference is {:?}), defaulted to symbol",
                        &fp, refer);
             }
-            for device in analysis.all_device_analysises_containing_file(
-                &CanonPath::from_path_buf(fp.path()).unwrap()) {
+            for device in analysis.filtered_device_analysises_containing_file(
+                &canon_path,
+                filter.as_ref()) {
                 definitions.extend(
-                    device.lookup_symbols_by_contexted_symbol(&sym)
+                    device.lookup_symbols_by_contexted_symbol(
+                        &sym, relevant_limitations)
                         .into_iter());
             }
         },
         (None, Some(refr)) => {
             debug!("Mapping {:?} to symbols", refr.loc_span());
-            for device in analysis.all_device_analysises_containing_file(
-                &CanonPath::from_path_buf(fp.path()).unwrap()) {
+            // Should be guaranteed by the context reference lookup above
+            // (isolated analysis does exist)
+            if refr.reference_kind() == ReferenceKind::Type {
+                relevant_limitations.insert(TYPE_SEMANTIC_LIMITATION);
+            }
+
+            let first_context = analysis.first_context_at_pos(fp).unwrap();
+            let mut any_template_used = false;
+            for device in analysis.filtered_device_analysises_containing_file(
+                &canon_path,
+                filter.as_ref()) {
                 debug!("reference info is {:?}", device.reference_info.keys());
+                // NOTE: This ends up being the correct place to warn users
+                // about references inside uninstantiated templates,
+                // but we have to perform some extra work to find out we are
+                // in that case
+                if let Some(ContextKey::Template(ref sym)) = first_context {
+                    if device.templates.templates.get(sym.name_ref())
+                        .and_then(|t|t.location.as_ref())
+                        .and_then(
+                            |loc|device.template_object_implementation_map.get(loc))
+                        .map_or(false, |impls|!impls.is_empty()) {
+                            any_template_used = true;
+                        }
+                }
                 if let Some(defs) = device.reference_info.get(
                     refr.loc_span()) {
                     for def in defs {
@@ -88,9 +208,14 @@ fn fp_to_symbol_refs(fp: &ZeroFilePosition, ctx: &InitActionContext)
                     }
                 }
             }
+            if let Some(ContextKey::Template(_)) = first_context {
+                if !any_template_used {
+                    relevant_limitations.insert(ISOLATED_TEMPLATE_LIMITATION);
+                }
+            }
         },
     }
-    Some(definitions)
+    Ok(definitions)
 }
 
 fn handle_default_remapping(ctx: &InitActionContext,
@@ -98,7 +223,9 @@ fn handle_default_remapping(ctx: &InitActionContext,
                             fp: &ZeroFilePosition) -> HashSet<ZeroSpan> {
     let analysis = ctx.analysis.lock().unwrap();
     let refr_opt = analysis.reference_at_pos(fp);
-    if let Some(refr) = refr_opt {
+    // NOTE: Because the call to this is preceded by a symbol lookup,
+    // it is probably safe to discard an error here
+    if let Ok(Some(refr)) = refr_opt {
         if refr.to_string().as_str() == "default" {
             // If we are at a defaut reference,
             // remap symbol references to methods
@@ -305,13 +432,14 @@ impl RequestAction for DocumentSymbolRequest {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        info!("Handing doc symbol request {:?}", params);
+        debug!("Handing doc symbol request {:?}", params);
         let parse_canon_path = parse_file_path!(
             &params.text_document.uri, "document symbols")
             .map(CanonPath::from_path_buf);
 
         if let Ok(Some(canon_path)) = parse_canon_path {
             ctx.analysis.lock().unwrap()
+                // TODO: Info about missing isolated analysis?
                 .get_isolated_analysis(&canon_path)
                 .map(|isolated|{
                     let context = isolated.toplevel.to_context();
@@ -320,7 +448,7 @@ impl RequestAction for DocumentSymbolRequest {
                         subsymbol_to_document_symbol).collect();
                     Some(DocumentSymbolResponse::Nested(symbols))
                 })
-                .map_or_else(Self::fallback_response, |r|Ok(r))
+                .or(Self::fallback_response())
         } else {
             Self::fallback_response()
         }
@@ -338,7 +466,7 @@ impl RequestAction for HoverRequest {
     fn handle(mut ctx: InitActionContext,
               params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        trace!("handling hover ({:?})", params);
+        debug!("handling hover ({:?})", params);
         let tooltip = hover::tooltip(&mut ctx,
                                      &params.text_document_position_params)?;
 
@@ -350,17 +478,21 @@ impl RequestAction for HoverRequest {
 }
 
 impl RequestAction for GotoImplementation {
-    type Response = Option<GotoImplementationResponse>;
+    type Response = ResponseWithMessage<Option<GotoImplementationResponse>>;
+
+    fn timeout() -> std::time::Duration {
+        crate::server::dispatch::DEFAULT_REQUEST_TIMEOUT * 5
+    }
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(None)
+        Ok(None.into())
     }
 
     fn handle(
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        info!("Requesting implementations with params {:?}", params);
+        debug!("Requesting implementations with params {:?}", params);
         let fp = {
             let maybe_fp = ctx.text_doc_pos_to_pos(
                 &params.text_document_position_params,
@@ -370,12 +502,16 @@ impl RequestAction for GotoImplementation {
             }
             maybe_fp.unwrap()
         };
+        ctx.wait_for_state(
+            AnalysisProgressKind::DeviceDependencies,
+            AnalysisWaitKind::Work,
+            AnalysisCoverageSpec::Paths(
+                std::iter::once(CanonPath::from_path_buf(fp.path()).unwrap())
+                    .collect())).ok();
 
-        if let Some(symbols) = fp_to_symbol_refs(&fp, &ctx) {
-            if symbols.is_empty() {
-                info!("No symbols found");
-                Ok(None)
-            } else {
+        let mut limitations = HashSet::new();
+        match fp_to_symbol_refs(&fp, &ctx, &mut limitations) {
+            Ok(symbols) => {
                 let mut unique_locations: HashSet<ZeroSpan>
                     = HashSet::default();
                 for symbol in symbols {
@@ -383,30 +519,44 @@ impl RequestAction for GotoImplementation {
                         unique_locations.insert(*implementation);
                     }
                 }
-                let lsp_locations = unique_locations.into_iter()
+                let lsp_locations: Vec<_> = unique_locations.into_iter()
                     .map(|l|ls_util::dls_to_location(&l))
                     .collect();
-                info!("Requested implementations are {:?}", lsp_locations);
-                Ok(Some(GotoImplementationResponse::Array(lsp_locations)))
-            }
-        } else {
-            Self::fallback_response()
+                trace!("Requested implementations are {:?}", lsp_locations);
+                Ok(response_maybe_with_limitations(
+                    // NOTE: this ends up being the client-path, which is
+                    // actually what we want
+                    &fp.path(),
+                    Some(GotoImplementationResponse::Array(lsp_locations)),
+                    limitations,
+                    &ctx))
+            },
+            Err(lookuperror) => {
+                let main_file_name = fp.path();
+                warn_miss_lookup(lookuperror,
+                                 main_file_name.to_str());
+                Self::fallback_response()
+            },
         }
     }
 }
 
 impl RequestAction for GotoDeclaration {
-    type Response = Option<GotoDeclarationResponse>;
+    type Response = ResponseWithMessage<Option<GotoDeclarationResponse>>;
+
+    fn timeout() -> std::time::Duration {
+        crate::server::dispatch::DEFAULT_REQUEST_TIMEOUT * 5
+    }
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(None)
+        Ok(None.into())
     }
 
     fn handle(
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        info!("Requesting declarations with params {:?}", params);
+        debug!("Requesting declarations with params {:?}", params);
         let fp = {
             let maybe_fp = ctx.text_doc_pos_to_pos(
                 &params.text_document_position_params,
@@ -416,38 +566,55 @@ impl RequestAction for GotoDeclaration {
             }
             maybe_fp.unwrap()
         };
-        if let Some(symbols) = fp_to_symbol_refs(&fp, &ctx) {
-            if symbols.is_empty() {
-                info!("No symbols found");
-                Ok(None)
-            } else {
+        ctx.wait_for_state(
+            AnalysisProgressKind::DeviceDependencies,
+            AnalysisWaitKind::Work,
+            AnalysisCoverageSpec::Paths(
+                std::iter::once(CanonPath::from_path_buf(fp.path()).unwrap())
+                    .collect())).ok();
+
+        let mut limitations = HashSet::new();
+        match fp_to_symbol_refs(&fp, &ctx, &mut limitations) {
+            Ok(symbols) => {
                 let unique_locations = handle_default_remapping(&ctx,
                                                                 symbols,
                                                                 &fp);
                 let lsp_locations = unique_locations.into_iter()
                     .map(|l|ls_util::dls_to_location(&l))
                     .collect();
-                info!("Requested declarations are {:?}", lsp_locations);
-                Ok(Some(GotoDefinitionResponse::Array(lsp_locations)))
-            }
-        } else {
-            Self::fallback_response()
+                trace!("Requested declarations are {:?}", lsp_locations);
+                Ok(response_maybe_with_limitations(
+                    &fp.path(),
+                    Some(GotoDefinitionResponse::Array(lsp_locations)),
+                    limitations,
+                    &ctx))
+            },
+            Err(lookuperror) => {
+                let main_file_name = fp.path();
+                warn_miss_lookup(lookuperror,
+                                 main_file_name.to_str());
+                Self::fallback_response()
+            },
         }
     }
 }
 
 impl RequestAction for GotoDefinition {
-    type Response = Option<GotoDefinitionResponse>;
+    type Response = ResponseWithMessage<Option<GotoDefinitionResponse>>;
+
+    fn timeout() -> std::time::Duration {
+        crate::server::dispatch::DEFAULT_REQUEST_TIMEOUT * 5
+    }
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(None)
+        Ok(None.into())
     }
 
     fn handle(
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        info!("Requesting definitions with params {:?}", params);
+        debug!("Requesting definitions with params {:?}", params);
         let fp = {
             let maybe_fp = ctx.text_doc_pos_to_pos(
                 &params.text_document_position_params,
@@ -457,39 +624,55 @@ impl RequestAction for GotoDefinition {
             }
             maybe_fp.unwrap()
         };
+        ctx.wait_for_state(
+            AnalysisProgressKind::DeviceDependencies,
+            AnalysisWaitKind::Work,
+            AnalysisCoverageSpec::Paths(
+                std::iter::once(CanonPath::from_path_buf(fp.path()).unwrap())
+                    .collect())).ok();
 
-        if let Some(symbols) = fp_to_symbol_refs(&fp, &ctx) {
-            if symbols.is_empty() {
-                info!("No symbols found");
-                Ok(None)
-            } else {
+        let mut limitations = HashSet::new();
+        match fp_to_symbol_refs(&fp, &ctx, &mut limitations) {
+            Ok(symbols) => {
                 let unique_locations: HashSet<ZeroSpan> =
                     symbols.into_iter()
                     .flat_map(|d|d.lock().unwrap().definitions.clone()).collect();
-                let lsp_locations = unique_locations.into_iter()
+                let lsp_locations: Vec<_> = unique_locations.into_iter()
                     .map(|l|ls_util::dls_to_location(&l))
                     .collect();
-                info!("Requested definitions are {:?}", lsp_locations);
-                Ok(Some(GotoDefinitionResponse::Array(lsp_locations)))
-            }
-        } else {
-            Self::fallback_response()
+                trace!("Requested definitions are {:?}", lsp_locations);
+                Ok(response_maybe_with_limitations(
+                    &fp.path(),
+                    Some(GotoDefinitionResponse::Array(lsp_locations)),
+                    limitations,
+                    &ctx))
+            },
+            Err(lookuperror) => {
+                let main_file_name = fp.path();
+                warn_miss_lookup(lookuperror,
+                                 main_file_name.to_str());
+                Self::fallback_response()
+            },
         }
     }
 }
 
 impl RequestAction for References {
-    type Response = Vec<Location>;
+    type Response = ResponseWithMessage<Vec<Location>>;
+
+    fn timeout() -> std::time::Duration {
+        crate::server::dispatch::DEFAULT_REQUEST_TIMEOUT * 5
+    }
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(vec![])
+        Ok(vec![].into())
     }
 
     fn handle(
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        info!("Requesting references with params {:?}", params);
+        debug!("Requesting references with params {:?}", params);
         let fp = {
             let maybe_fp = ctx.text_doc_pos_to_pos(
                 &params.text_document_position,
@@ -499,22 +682,34 @@ impl RequestAction for References {
             }
             maybe_fp.unwrap()
         };
-        if let Some(symbols) = fp_to_symbol_refs(&fp, &ctx) {
-            if symbols.is_empty() {
-                info!("No symbols found");
-                Ok(vec![])
-            } else {
+        ctx.wait_for_state(
+            AnalysisProgressKind::DeviceDependencies,
+            AnalysisWaitKind::Work,
+            AnalysisCoverageSpec::Paths(
+                std::iter::once(CanonPath::from_path_buf(fp.path()).unwrap())
+                    .collect())).ok();
+        let mut limitations = HashSet::new();
+        match fp_to_symbol_refs(&fp, &ctx, &mut limitations) {
+            Ok(symbols) => {
                 let unique_locations: HashSet<ZeroSpan> =
                     symbols.into_iter()
                     .flat_map(|d|d.lock().unwrap().references.clone()).collect();
-                let lsp_locations = unique_locations.into_iter()
+                let lsp_locations: Vec<_> = unique_locations.into_iter()
                     .map(|l|ls_util::dls_to_location(&l))
                     .collect();
-                info!("Requested references are {:?}", lsp_locations);
-                Ok(lsp_locations)
-            }
-        } else {
-            Self::fallback_response()
+                trace!("Requested references are {:?}", lsp_locations);
+                Ok(response_maybe_with_limitations(
+                    &fp.path(),
+                    lsp_locations,
+                    limitations,
+                    &ctx))
+            },
+            Err(lookuperror) => {
+                let main_file_name = fp.path();
+                warn_miss_lookup(lookuperror,
+                                 main_file_name.to_str());
+                Self::fallback_response()
+            },
         }
     }
 }
@@ -699,5 +894,91 @@ impl RequestAction for CodeLensRequest {
     ) -> Result<Self::Response, ResponseError> {
         // TODO: figure out if we want to use this
         Self::fallback_response()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ContextDefinitionParam {
+    kind: ContextDefinitionKindParam,
+    active: bool,
+    ready: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct GetKnownContextsRequest;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetKnownContextsParams {
+    // None or empty implies to get ALL contexts
+    pub paths: Option<Vec<lsp_types::Uri>>,
+}
+
+impl LSPRequest for GetKnownContextsRequest {
+    type Params = GetKnownContextsParams;
+    type Result = Option<Vec<(lsp_types::Uri, Vec<ContextDefinitionParam>)>>;
+
+    const METHOD: &'static str = "$/getKnownContexts";
+}
+
+impl RequestAction for GetKnownContextsRequest {
+    type Response = Vec<ContextDefinitionParam>;
+
+    fn timeout() -> std::time::Duration {
+        crate::server::dispatch::DEFAULT_REQUEST_TIMEOUT * 10
+    }
+
+    fn fallback_response() -> Result<Self::Response, ResponseError> {
+        Err(ResponseError::Empty)
+    }
+
+    fn handle(
+        ctx: InitActionContext,
+        params: Self::Params,
+    ) -> Result<Self::Response, ResponseError> {
+        let for_these_paths: Vec<CanonPath> =
+            if let Some(params) = params.paths {
+                params.iter().filter_map(
+                    |uri|parse_file_path!(&uri, "GetKnownContexts")
+                        .ok()
+                        .and_then(CanonPath::from_path_buf))
+                    .collect()
+            } else {
+                vec![]
+            };
+        ctx.wait_for_state(
+            AnalysisProgressKind::Isolated,
+            AnalysisWaitKind::Existence,
+            AnalysisCoverageSpec::Paths(for_these_paths.clone())).ok();
+
+        let contexts: HashSet<(ContextDefinition, bool, bool)>
+            = if for_these_paths.is_empty() {
+                ctx.get_all_context_info()
+            } else {
+                for_these_paths
+                    .into_iter()
+                    .flat_map(|canon|{
+                        let info = ctx.get_context_info(&canon);
+                        info.into_iter()
+                    })
+                    .collect()
+            };
+        Ok(contexts.into_iter().filter_map(
+            |(context, b, r)|
+            if let ContextDefinition::Device(dev) = context {
+                Some((dev, b, r))
+            } else {
+                None
+            })
+           .filter_map(
+               |(path, b, r)|
+               parse_uri(path.as_str()).ok()
+                   .map(|uri|
+                        ContextDefinitionParam {
+                            kind: ContextDefinitionKindParam::Device(uri),
+                            active: b,
+                            ready: r,
+                        }))
+           .collect()
+        )
     }
 }

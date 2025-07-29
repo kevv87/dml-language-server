@@ -2,32 +2,23 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use log::{debug, error, trace};
+use lsp_types::TextEdit;
 use serde::{Deserialize, Serialize};
-use rules::{instantiate_rules, CurrentRules};
-use rules::spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
-                     NspInparenOptions, NspUnaryOptions, NspTrailingOptions};
-use rules::indentation::{LongLineOptions};
+use rules::{instantiate_rules, CurrentRules, RuleType};
+use rules::{spacing::{SpBraceOptions, SpPunctOptions, NspFunparOptions,
+                      NspInparenOptions, NspUnaryOptions, NspTrailingOptions},
+                      indentation::{LongLineOptions, IndentSizeOptions, IndentCodeBlockOptions,
+                                    IndentNoTabOptions, IndentClosingBraceOptions, IndentParenExprOptions, IndentSwitchCaseOptions, IndentEmptyLoopOptions},
+                    };
 use crate::analysis::{DMLError, IsolatedAnalysis, LocalDMLError};
 use crate::analysis::parsing::tree::TreeElement;
 use crate::file_management::CanonPath;
 use crate::vfs::{Error, TextFile};
 use crate::analysis::parsing::structure::TopAst;
-use crate::lint::rules::indentation::{LongLinesRule, MAX_LENGTH_DEFAULT};
-
-impl LongLineOptions{
-    fn into_rule(options: &Option<LongLineOptions>) -> LongLinesRule {
-        match options {
-            Some(long_lines) => LongLinesRule {
-                enabled: true,
-                max_length: long_lines.max_length,
-            },
-            None => LongLinesRule {
-                enabled: false,
-                max_length: MAX_LENGTH_DEFAULT,
-            },
-        }
-    }
-}
+use crate::lint::rules::indentation::{MAX_LENGTH_DEFAULT,
+                                      INDENTATION_LEVEL_DEFAULT,
+                                      setup_indentation_size
+                                    };
 
 pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
     debug!("Reading Lint configuration from {:?}", path);
@@ -40,7 +31,10 @@ pub fn parse_lint_cfg(path: PathBuf) -> Result<LintCfg, String> {
 
 pub fn maybe_parse_lint_cfg(path: PathBuf) -> Option<LintCfg> {
     match parse_lint_cfg(path) {
-        Ok(cfg) => Some(cfg),
+        Ok(mut cfg) => {
+            setup_indentation_size(&mut cfg);
+            Some(cfg)
+        },
         Err(e) => {
             error!("Failed to parse linting CFG: {}", e);
             None
@@ -66,6 +60,20 @@ pub struct LintCfg {
     pub nsp_trailing: Option<NspTrailingOptions>,
     #[serde(default)]
     pub long_lines: Option<LongLineOptions>,
+    #[serde(default)]
+    pub indent_size: Option<IndentSizeOptions>,
+    #[serde(default)]
+    pub indent_no_tabs: Option<IndentNoTabOptions>,
+    #[serde(default)]
+    pub indent_code_block: Option<IndentCodeBlockOptions>,
+    #[serde(default)]
+    pub indent_closing_brace: Option<IndentClosingBraceOptions>,
+    #[serde(default)]
+    pub indent_paren_expr: Option<IndentParenExprOptions>,
+    #[serde(default)]
+    pub indent_switch_case: Option<IndentSwitchCaseOptions>,
+    #[serde(default)]
+    pub indent_empty_loop: Option<IndentEmptyLoopOptions>,
 }
 
 impl Default for LintCfg {
@@ -77,11 +85,23 @@ impl Default for LintCfg {
             nsp_inparen: Some(NspInparenOptions{}),
             nsp_unary: Some(NspUnaryOptions{}),
             nsp_trailing: Some(NspTrailingOptions{}),
-            long_lines: Some(LongLineOptions {
-                max_length: MAX_LENGTH_DEFAULT,
-            }),
+            long_lines: Some(LongLineOptions{max_length: MAX_LENGTH_DEFAULT}),
+            indent_size: Some(IndentSizeOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            indent_no_tabs: Some(IndentNoTabOptions{}),
+            indent_code_block: Some(IndentCodeBlockOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            indent_closing_brace: Some(IndentClosingBraceOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            indent_paren_expr: Some(IndentParenExprOptions{}),
+            indent_switch_case: Some(IndentSwitchCaseOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
+            indent_empty_loop: Some(IndentEmptyLoopOptions{indentation_spaces: INDENTATION_LEVEL_DEFAULT}),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct DMLStyleError {
+    pub error: LocalDMLError,
+    pub rule_type: RuleType,
+    pub fix: Option<TextEdit>
 }
 
 #[derive(Debug, Clone)]
@@ -107,8 +127,8 @@ impl LinterAnalysis {
         let rules =  instantiate_rules(&cfg);
         let local_lint_errors = begin_style_check(original_analysis.ast, file.text, &rules)?;
         let mut lint_errors = vec![];
-        for error in local_lint_errors {
-            lint_errors.push(error.warning_with_file(path));
+        for entry in local_lint_errors {
+            lint_errors.push(entry.error.warning_with_file(path));
         }
 
         let res = LinterAnalysis {
@@ -120,99 +140,51 @@ impl LinterAnalysis {
     }
 }
 
-pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Result<Vec<LocalDMLError>, Error> {
-    let mut linting_errors: Vec<LocalDMLError> = vec![];
-    ast.style_check(&mut linting_errors, rules);
+pub fn begin_style_check(ast: TopAst, file: String, rules: &CurrentRules) -> Result<Vec<DMLStyleError>, Error> {
+    let mut linting_errors: Vec<DMLStyleError> = vec![];
+    ast.style_check(&mut linting_errors, rules, AuxParams { depth: 0 });      
 
     // Per line checks
-    for (row, line) in file.lines().enumerate() {
+    let lines: Vec<&str> = file.lines().collect();
+    for (row, line) in lines.iter().enumerate() {
+        rules.indent_no_tabs.check(&mut linting_errors, row, line);
         rules.long_lines.check(&mut linting_errors, row, line);
         rules.nsp_trailing.check(&mut linting_errors, row, line);
     }
 
+    post_process_linting_errors(&mut linting_errors);
+
     Ok(linting_errors)
 }
 
+fn post_process_linting_errors(errors: &mut Vec<DMLStyleError>) {
+    // Collect indent_no_tabs ranges
+    let indent_no_tabs_ranges: Vec<_> = errors.iter()
+        .filter(|style_err| style_err.rule_type == RuleType::IN2)
+        .map(|style_err| style_err.error.range)
+        .collect();
+
+    // Remove linting errors that are in indent_no_tabs rows
+    errors.retain(|style_err| {
+        !indent_no_tabs_ranges.iter().any(|range|
+            (range.row_start == style_err.error.range.row_start || range.row_end == style_err.error.range.row_end)
+            && style_err.rule_type != RuleType::IN2)
+    });
+}
+
+// AuxParams is an extensible struct.
+// It can be used for any data that needs
+// to be passed down the tree nodes
+// to where Rules can use such data.
+#[derive(Copy, Clone)]
+pub struct AuxParams {
+    // depth is used by the indentation rules for calculating
+    // the correct indentation level for a node in the AST.
+    // Individual nodes update depth to affect level of their
+    // nested TreeElements. See more in src/lint/README.md
+    pub depth: u32,
+}
 
 pub mod rules;
-pub mod tests {
-    use std::path::Path;
-    use std::str::FromStr;
-    use crate::{analysis::{parsing::{parser::FileInfo, structure::{self, TopAst}}, FileSpec}, vfs::TextFile};
-
-    pub static SOURCE: &str = "
-    dml 1.4;
-
-    bank sb_cr {
-        group monitor {    
-
-            register MKTME_KEYID_MASK {
-                method get() -> (uint64) {
-                    local uint64 physical_address_mask = mse.srv10nm_mse_mktme.get_key_addr_mask();
-                    this.Mask.set(physical_address_mask);
-                    this.function_with_args('some_string',
-                                    integer,
-                                    floater);
-                    return this.val;
-                }
-            }
-
-            register TDX_KEYID_MASK {
-                method get() -> (uint64) {
-                    local uint64 tdx_keyid_mask = mse.srv10nm_mse_tdx.get_key_addr_mask();
-                    local uint64 some_uint = (is_this_real) ? then_you_might_like_this_value : or_this_one;
-                    this.Mask.set(tdx_keyid_mask);
-                    return this.val;
-                }
-            }
-        }
-    }   
-
-    /*
-        This is ONEEEE VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
-        and ANOTHEEEER VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
-    */
-
-    ";
-
-    pub fn create_ast_from_snippet(source: &str) -> TopAst {
-        use logos::Logos;
-        use crate::analysis::parsing::lexer::TokenKind;
-        use crate::analysis::parsing::parser::FileParser;
-        let lexer = TokenKind::lexer(source);
-        let mut fparser = FileParser::new(lexer);
-        let mut parse_state = FileInfo::default();
-        let file_result =  &TextFile::from_str(source);
-        assert!(file_result.is_ok());
-        let file = file_result.clone().unwrap();
-        let filespec = FileSpec {
-            path: Path::new("test.txt"), file: &file
-        };
-        structure::parse_toplevel(&mut fparser, &mut parse_state, filespec)
-    }
-
-    // Tests both that the example Cfg parses, and that it is the default Cfg
-    pub static EXAMPLE_CFG: &str = "/example_files/example_lint_cfg.json";
-    #[test]
-    fn test_example_lintcfg() {
-        use crate::lint::{parse_lint_cfg, LintCfg};
-        let example_path = format!("{}{}",
-                                   env!("CARGO_MANIFEST_DIR"),
-                                   EXAMPLE_CFG);
-        let example_cfg = parse_lint_cfg(example_path.into()).unwrap();
-        assert_eq!(example_cfg, LintCfg::default());
-    }
-
-    #[test]
-    #[ignore]
-    fn test_main() {
-        use crate::lint::{begin_style_check, LintCfg};
-        use crate::lint::rules:: instantiate_rules;
-        let ast = create_ast_from_snippet(SOURCE);
-        let cfg = LintCfg::default();
-        let rules = instantiate_rules(&cfg);
-        let _lint_errors = begin_style_check(ast, SOURCE.to_string(), &rules);
-        assert!(_lint_errors.is_ok());
-        assert!(!_lint_errors.unwrap().is_empty());
-    }
-}
+#[cfg(test)]
+pub mod tests;
