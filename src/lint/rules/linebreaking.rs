@@ -257,19 +257,15 @@ impl ConditionalExpressionBreakBeforeOperatorRule {
     pub fn check(&self, acc: &mut Vec<DMLStyleError>, args: Option<ConditionalExpressionBreakBeforeOperatorArgs>) {
         if !self.enabled { return; }
         let Some(args) = args else { return; };
-        let has_multiple_lines_left = args.left.row_start.0 != args.left.row_end.0;
-        let has_multiple_lines_middle = args.middle.row_start != args.middle.row_end;
-        let has_multiple_lines_right = args.right.row_start != args.right.row_end;
+        let has_break_before_question_operator = args.left.row_end.0 != args.left_operation.row_start.0;
         let has_break_after_question_operator = args.left_operation.row_end.0 != args.middle.row_start.0;
-        let has_break_after_colon_operator = args.middle.row_end.0 != args.right_operation.row_start.0;
-        if has_multiple_lines_left {
-            acc.push(self.create_err(args.left));
+        let has_break_before_colon_operator = args.middle.row_end.0 != args.right_operation.row_start.0;
+        let has_break_after_colon_operator = args.right_operation.row_end.0 != args.right.row_start.0;
+        if has_break_after_question_operator {
+            acc.push(self.create_err(args.left_operation));
         }
-        if has_multiple_lines_middle || has_break_after_question_operator {
-            acc.push(self.create_err(args.middle));
-        }
-        if has_multiple_lines_right || has_break_after_colon_operator {
-            acc.push(self.create_err(args.right));
+        if has_break_after_colon_operator || (has_break_before_colon_operator && !has_break_before_question_operator ){
+            acc.push(self.create_err(args.right_operation));
         }
     }
 }
