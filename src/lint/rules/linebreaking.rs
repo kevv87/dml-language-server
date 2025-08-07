@@ -30,7 +30,7 @@ pub struct MethodOutputBreakOptions{
 
 impl Rule for MethodOutputBreakRule {
     fn name() -> &'static str {
-        "METHOD_OUTPUT_BREAK"
+        "method_output_break"
     }
     fn description() -> &'static str {
         "Break long method declarations with output parameters before the arrow."
