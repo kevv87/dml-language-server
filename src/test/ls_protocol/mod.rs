@@ -11,7 +11,6 @@ use std::path::Path;
 use std::process::{ChildStdout, Command, Stdio};
 use std::str::FromStr;
 
-use crate::file_management::CanonPath;
 use crate::server::{Notification, Request, RequestId};
 
 // Used to debug the child
@@ -35,9 +34,14 @@ lazy_static::lazy_static! {
     static ref MOCK_URI: String = {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let abs_path = Path::new(manifest_dir).join("example_files/example.dml");
-        CanonPath::from(abs_path.as_path())
-            .as_str()
-            .to_string()
+        let uri_string = format!("file://{}", abs_path.display());
+        uri_string
+    };
+    static ref MOCK_URI_WORKSPACE: String = {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let abs_path = Path::new(manifest_dir);
+        let uri_string = format!("file://{}", abs_path.display());
+        uri_string
     };
 }
 
@@ -207,6 +211,10 @@ fn get_one_msg_from_server(child: &mut std::process::Child) -> Response {
 }
 
 fn create_initialize_request() -> String {
+    let workspace_folders = Some(vec![lsp_types::WorkspaceFolder {
+        uri: Uri::from_str(&MOCK_URI_WORKSPACE).unwrap(),
+        name: "test_workspace".to_string(),
+    }]);
     #[allow(deprecated)]
     let params = lsp_types::InitializeParams {
         process_id: None,
@@ -215,7 +223,7 @@ fn create_initialize_request() -> String {
         initialization_options: None,
         capabilities: lsp_types::ClientCapabilities::default(),
         trace: None,
-        workspace_folders: None,
+        workspace_folders: workspace_folders,
         client_info: None,
         locale: None,
         work_done_progress_params: lsp_types::WorkDoneProgressParams {
