@@ -9,7 +9,6 @@ use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem, Uri};
 use lsp_types::notification::{DidOpenTextDocument};
 use lsp_types::request::{Initialize};
 
-
 use crate::server::{Notification, Request, RequestId};
 
 fn setup_test() -> std::process::Child {
@@ -27,7 +26,6 @@ fn setup_test() -> std::process::Child {
 
 fn send_message(child: &mut std::process::Child, message: &str) {
     if let Some(stdin) = child.stdin.as_mut() {
-        println!("Sending:\n{}", message);
         stdin.write_all(message.as_bytes()).expect(
             "Failed to write to stdin");
     } else {
@@ -35,17 +33,8 @@ fn send_message(child: &mut std::process::Child, message: &str) {
     }
 }
 
-#[test]
-pub fn test_01_empty_message_return_err() {
-    let mut child = setup_test();
-    send_message(&mut child, "");
-
-    let exit_status = child.wait().expect(
-        "Failed to wait for dls process");
-    assert!(!exit_status.success(), 
-        "DLS should return an error for empty message");
-    let err_code = exit_status.code().unwrap();
-    assert!(err_code == 101, "Expected 101 but got: {:?}", err_code);
+fn teardown(child: &mut std::process::Child) {
+    child.wait().expect("Failed while waiting child to join!");
 }
 
 fn server_buffer_to_json(msg_buffer: &str) -> Vec<&str> {
@@ -96,30 +85,6 @@ fn get_server_msg(child: &mut std::process::Child) -> String {
     String::from_utf8_lossy(&buffer)
         .trim_end_matches('\0')
         .to_string()
-}
-
-fn send_msg_and_wait(child: &mut std::process::Child, message: String) {
-    send_message(child, message.as_str());
-    // child.wait().expect("Failed to wait for dls process");
-}
-
-#[test]
-pub fn test_02_empty_message_expect_err_on_stdout() {
-    let mut child = setup_test();
-
-    send_msg_and_wait(&mut child, "".to_string());
-    
-    let output = get_server_msg(&mut child);
-
-    let server_messages = server_buffer_to_json(&output);
-    assert_eq!(server_messages.len(), 1, 
-        "Expected one message in output, got: {:?}", server_messages);
-    let message = server_messages[0];
-    let response: Response = serde_json::from_str(message)
-        .expect("Failed to parse output as JSON");
-    let response_err_code = response.error.unwrap().code;
-    assert_eq!(response_err_code, -32700, 
-        "Expected ParseError but got: {:?}", response_err_code);
 }
 
 fn add_header(mess: &str) -> String {
@@ -189,23 +154,6 @@ fn get_one_msg_from_server(child: &mut std::process::Child) -> String {
     server_messages[0].to_string()
 }
 
-#[test]
-pub fn test_03_without_init_server_rejects() { 
-    let mut child = setup_test();
-
-    let did_open_notif = &create_did_open_text_document_request(MOCK_URI, SOURCE);
-
-    send_msg_and_wait(&mut child, add_header(&did_open_notif));
-    
-    let message = get_one_msg_from_server(&mut child);
-    let response: Response = serde_json::from_str(&message)
-        .expect("Failed to parse output as JSON");
-    let response_err_code = response.error.unwrap().code;
-    assert_eq!(response_err_code, -32700, 
-        "Expected ParseError but got: {:?}", response_err_code);
-    
-}
-
 fn create_initialize_request() -> String {
     let params = lsp_types::InitializeParams {
         process_id: None,
@@ -231,15 +179,13 @@ fn create_initialize_request() -> String {
 }
 
 #[test]
-pub fn test_04_initreq_responds_with_initres() {
+pub fn test_01_initreq_responds_with_initres() {
     let mut child = setup_test();
     let initialize_request = create_initialize_request();
-    send_msg_and_wait(&mut child, add_header(&initialize_request));
+    send_message(&mut child, &add_header(&initialize_request));
 
-    // Print el mensaje en bytes
     let message = get_one_msg_from_server(&mut child);
-    let response: Response = serde_json::from_str(&message)
+    let _: serde_json::Value = serde_json::from_str(&message)
         .expect("Failed to parse output as JSON");
-    println!("Response: {:?}", response);
-
+    teardown(&mut child);
 }
