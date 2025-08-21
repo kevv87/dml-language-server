@@ -3,24 +3,45 @@ use std::process::{ChildStdout, Command, Stdio};
 use std::io::{Write, Read};
 use std::env;
 use std::str::FromStr;
+use std::fs;
 use jsonrpc::Response;
 use serde_json;
-use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem, Uri};
+use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem, Uri,
+                InitializeResult};
 use lsp_types::notification::{DidOpenTextDocument};
 use lsp_types::request::{Initialize};
 
-use crate::server::{Notification, Request, RequestId};
+use crate::server::{message, Notification, Request, RequestId};
+
+lazy_static::lazy_static! {
+    static ref MOCK_URI: String = {
+        let path = "/fake/path/to/example.dml";
+        format!("file://{}", path)
+    };
+}
+
+fn initialize_server(mut child: &mut std::process::Child) {
+    let initialize_request = create_initialize_request();
+    send_message(child, &add_header(&initialize_request));
+
+    let server_res = get_one_msg_from_server(child);
+
+    let initres: InitializeResult  =
+        server_res.result().ok().expect("Did not find an init result as response!");
+    println!("{:?}", initres);
+}
 
 fn setup_test() -> std::process::Child {
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("RUST_LOG", "debug");
 
     let dls_bin = "target/debug/dls";
-    let child = Command::new(dls_bin)
+    let mut child = Command::new(dls_bin)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to start dls process");
+    initialize_server(&mut child);
     child
 }
 
@@ -143,15 +164,19 @@ fn create_did_open_text_document_request(
     }.to_string()
 }
 
-static MOCK_URI: &str = "file:///test.dml";
-
-fn get_one_msg_from_server(child: &mut std::process::Child) -> String {
+fn get_one_msg_from_server(child: &mut std::process::Child) -> Response {
     let output = get_server_msg(child);
     println!("Output: {}", output);
     let server_messages = server_buffer_to_json(&output);
     assert_eq!(server_messages.len(), 1, 
         "Expected one message in output, got: {:?}", server_messages);
-    server_messages[0].to_string()
+    let jsonrpc_response : Response = serde_json::from_str(
+        &server_messages[0].to_string()).expect("Failed to parse server output!");
+
+    if jsonrpc_response.clone().check_error().is_err() {
+        panic!("Got an error from the server response!");
+    }
+    jsonrpc_response
 }
 
 fn create_initialize_request() -> String {
@@ -181,11 +206,18 @@ fn create_initialize_request() -> String {
 #[test]
 pub fn test_01_initreq_responds_with_initres() {
     let mut child = setup_test();
-    let initialize_request = create_initialize_request();
-    send_message(&mut child, &add_header(&initialize_request));
+    teardown(&mut child);
+}
 
-    let message = get_one_msg_from_server(&mut child);
-    let _: serde_json::Value = serde_json::from_str(&message)
-        .expect("Failed to parse output as JSON");
+#[test]
+pub fn test_02_didOpen_responds_with_PublishDiagnostics() {
+    let mut child = setup_test();
+    let req = create_did_open_text_document_request(&MOCK_URI, SOURCE);
+    send_message(&mut child, &add_header(&req));
+    
+    let server_res = get_one_msg_from_server(&mut child);
+    let diagnostics: lsp_types::PublishDiagnosticsParams =
+        server_res.result().ok().expect("Couldnt parse server response as PublishDiagnostics");
+    println!("\n{:?}", diagnostics);
     teardown(&mut child);
 }
