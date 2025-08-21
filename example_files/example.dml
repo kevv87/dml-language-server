@@ -6,7 +6,7 @@ bank sb_cr {
         register MKTME_KEYID_MASK {
             method get() -> (uint64) {
                 local uint64 physical_address_mask = mse.srv10nm_mse_mktme.get_key_addr_mask();
-                this.Mask.set(physical_address_mask);
+                this.Mask.set(    physical_address_mask);
                 this.function_with_args('some_string',
                                 integer,
                                 floater);
