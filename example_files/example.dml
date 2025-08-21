@@ -1,0 +1,32 @@
+dml 1.4;
+
+bank sb_cr {
+    group monitor {    
+
+        register MKTME_KEYID_MASK {
+            method get() -> (uint64) {
+                local uint64 physical_address_mask = mse.srv10nm_mse_mktme.get_key_addr_mask();
+                this.Mask.set(physical_address_mask);
+                this.function_with_args('some_string',
+                                integer,
+                                floater);
+                return this.val;
+            }
+        }
+
+        register TDX_KEYID_MASK {
+            method get() -> (uint64) {
+                local uint64 tdx_keyid_mask = mse.srv10nm_mse_tdx.get_key_addr_mask();
+                local uint64 some_uint = (is_this_real) ? then_you_might_like_this_value : or_this_one;
+                this.Mask.set(tdx_keyid_mask);
+                return this.val;
+            }
+        }
+    }
+}   
+
+/*
+    This is ONEEEE VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
+    and ANOTHEEEER VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
+*/
+

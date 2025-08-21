@@ -1,39 +1,61 @@
-use std::marker::PhantomData;
-use std::process::{ChildStdout, Command, Stdio};
-use std::io::{Write, Read};
-use std::env;
-use std::str::FromStr;
-use std::fs;
 use jsonrpc::Response;
+use lsp_types::notification::DidOpenTextDocument;
+use lsp_types::request::Initialize;
+use lsp_types::{DidOpenTextDocumentParams, InitializeResult, TextDocumentItem, Uri};
 use serde_json;
-use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem, Uri,
-                InitializeResult};
-use lsp_types::notification::{DidOpenTextDocument};
-use lsp_types::request::{Initialize};
+use std::env;
+use std::io;
+use std::io::{Read, Write};
+use std::marker::PhantomData;
+use std::path::Path;
+use std::process::{ChildStdout, Command, Stdio};
+use std::str::FromStr;
 
-use crate::server::{message, Notification, Request, RequestId};
+use crate::file_management::CanonPath;
+use crate::server::{Notification, Request, RequestId};
+
+// Used to debug the child
+#[allow(dead_code)]
+fn wait_for_enter() {
+    println!("Press Enter to continue...");
+    io::stdout().flush().unwrap(); // Ensure the prompt is displayed
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
+}
+
+#[allow(dead_code)]
+fn debug_child(child: &mut std::process::Child) {
+    println!("Child PID: {}", child.id());
+    wait_for_enter();
+}
 
 lazy_static::lazy_static! {
     static ref MOCK_URI: String = {
-        let path = "/fake/path/to/example.dml";
-        format!("file://{}", path)
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let abs_path = Path::new(manifest_dir).join("example_files/example.dml");
+        CanonPath::from(abs_path.as_path())
+            .as_str()
+            .to_string()
     };
 }
 
-fn initialize_server(mut child: &mut std::process::Child) {
+fn initialize_server(child: &mut std::process::Child) {
     let initialize_request = create_initialize_request();
     send_message(child, &add_header(&initialize_request));
 
     let server_res = get_one_msg_from_server(child);
 
-    let initres: InitializeResult  =
-        server_res.result().ok().expect("Did not find an init result as response!");
-    println!("{:?}", initres);
+    let _: InitializeResult = server_res
+        .result()
+        .ok()
+        .expect("Did not find an init result as response!");
 }
 
 fn setup_test() -> std::process::Child {
     env::set_var("RUST_BACKTRACE", "1");
-    env::set_var("RUST_LOG", "debug");
+    env::set_var("RUST_LOG", "trace");
 
     let dls_bin = "target/debug/dls";
     let mut child = Command::new(dls_bin)
@@ -47,8 +69,9 @@ fn setup_test() -> std::process::Child {
 
 fn send_message(child: &mut std::process::Child, message: &str) {
     if let Some(stdin) = child.stdin.as_mut() {
-        stdin.write_all(message.as_bytes()).expect(
-            "Failed to write to stdin");
+        stdin
+            .write_all(message.as_bytes())
+            .expect("Failed to write to stdin");
     } else {
         panic!("Child process does not have a stdin");
     }
@@ -94,10 +117,11 @@ fn get_content_length(stdout: &mut ChildStdout) -> usize {
     content_length + 3 // Taking into consideration the prepended \r\n\r
 }
 
-
 fn get_server_msg(child: &mut std::process::Child) -> String {
-    let stdout = child.stdout.as_mut().expect(
-        "Child process does not have a stdout. Unable to read server message.");
+    let stdout = child
+        .stdout
+        .as_mut()
+        .expect("Child process does not have a stdout. Unable to read server message.");
     let content_length = get_content_length(stdout);
     let mut buffer = vec![0; content_length];
     stdout
@@ -147,9 +171,7 @@ bank sb_cr {
 
 ";
 
-fn create_did_open_text_document_request(
-    uri: &str, source: &str) -> String
-{
+fn create_did_open_text_document_request(uri: &str, source: &str) -> String {
     let params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem::new(
             Uri::from_str(uri).unwrap(),
@@ -161,17 +183,22 @@ fn create_did_open_text_document_request(
     Notification::<DidOpenTextDocument> {
         params,
         _action: PhantomData,
-    }.to_string()
+    }
+    .to_string()
 }
 
 fn get_one_msg_from_server(child: &mut std::process::Child) -> Response {
     let output = get_server_msg(child);
     println!("Output: {}", output);
     let server_messages = server_buffer_to_json(&output);
-    assert_eq!(server_messages.len(), 1, 
-        "Expected one message in output, got: {:?}", server_messages);
-    let jsonrpc_response : Response = serde_json::from_str(
-        &server_messages[0].to_string()).expect("Failed to parse server output!");
+    assert_eq!(
+        server_messages.len(),
+        1,
+        "Expected one message in output, got: {:?}",
+        server_messages
+    );
+    let jsonrpc_response: Response = serde_json::from_str(&server_messages[0].to_string())
+        .expect("Failed to parse server output!");
 
     if jsonrpc_response.clone().check_error().is_err() {
         panic!("Got an error from the server response!");
@@ -180,6 +207,7 @@ fn get_one_msg_from_server(child: &mut std::process::Child) -> Response {
 }
 
 fn create_initialize_request() -> String {
+    #[allow(deprecated)]
     let params = lsp_types::InitializeParams {
         process_id: None,
         root_path: None,
@@ -199,7 +227,8 @@ fn create_initialize_request() -> String {
         received: std::time::Instant::now(),
         params,
         _action: PhantomData,
-    }.to_string();
+    }
+    .to_string();
     request
 }
 
@@ -210,14 +239,17 @@ pub fn test_01_initreq_responds_with_initres() {
 }
 
 #[test]
-pub fn test_02_didOpen_responds_with_PublishDiagnostics() {
+pub fn test_02_did_open_responds_with_publish_diagnostics() {
     let mut child = setup_test();
+
     let req = create_did_open_text_document_request(&MOCK_URI, SOURCE);
     send_message(&mut child, &add_header(&req));
-    
+
     let server_res = get_one_msg_from_server(&mut child);
-    let diagnostics: lsp_types::PublishDiagnosticsParams =
-        server_res.result().ok().expect("Couldnt parse server response as PublishDiagnostics");
+    let diagnostics: lsp_types::PublishDiagnosticsParams = server_res
+        .result()
+        .ok()
+        .expect("Couldnt parse server response as PublishDiagnostics");
     println!("\n{:?}", diagnostics);
     teardown(&mut child);
 }
