@@ -13,7 +13,7 @@ bank sb_cr {
                 return this.val;
             }
         }
-
+        method foo() {self.get(); }
         register TDX_KEYID_MASK {
             method get() -> (uint64) {
                 local uint64 tdx_keyid_mask = mse.srv10nm_mse_tdx.get_key_addr_mask();

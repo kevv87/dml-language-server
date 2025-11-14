@@ -1,5 +1,5 @@
 use jsonrpc::Response;
-use lsp_types::notification::DidOpenTextDocument;
+use lsp_types::notification::{DidOpenTextDocument, PublishDiagnostics};
 use lsp_types::request::Initialize;
 use lsp_types::{DidOpenTextDocumentParams, InitializeResult, TextDocumentItem, Uri};
 use serde_json;
@@ -11,6 +11,7 @@ use std::path::Path;
 use std::process::{ChildStdout, Command, Stdio};
 use std::str::FromStr;
 
+use crate::server::message::RawMessage;
 use crate::server::{Notification, Request, RequestId};
 use std::process;
 
@@ -56,7 +57,7 @@ fn initialize_server(child: &mut std::process::Child) {
     let initialize_request = create_initialize_request();
     send_message(child, &add_header(&initialize_request));
 
-    let server_res = get_one_msg_from_server(child);
+    let server_res = get_one_response_from_server(child);
 
     let _: InitializeResult = server_res
         .result()
@@ -89,7 +90,32 @@ fn send_message(child: &mut std::process::Child, message: &str) {
     }
 }
 
+fn finalize_server(child: &mut std::process::Child) {
+    let shutdown_request = Request::<lsp_types::request::Shutdown> {
+        id: RequestId::from(serde_json::Value::from(456)),
+        received: std::time::Instant::now(),
+        params: (),
+        _action: PhantomData,
+    }
+    .to_string();
+    send_message(child, &add_header(&shutdown_request));
+    sleep();
+    let _shutdown_response = get_one_response_from_server(child);
+
+    let exit_notification = Notification::<lsp_types::notification::Exit> {
+        params: (),
+        _action: PhantomData,
+    }
+    .to_string();
+    send_message(child, &add_header(&exit_notification));
+}
+
+fn sleep(){
+    std::thread::sleep(std::time::Duration::from_millis(100));
+}
+
 fn teardown(child: &mut std::process::Child) {
+    finalize_server(child);
     child.wait().expect("Failed while waiting child to join!");
 }
 
@@ -199,7 +225,7 @@ fn create_did_open_text_document_request(uri: &str, source: &str) -> String {
     .to_string()
 }
 
-fn get_one_msg_from_server(child: &mut std::process::Child) -> Response {
+fn get_one_message_from_server(child: &mut std::process::Child) -> String {
     let output = get_server_msg(child);
     println!("Output: {}", output);
     let server_messages = server_buffer_to_json(&output);
@@ -217,17 +243,30 @@ fn get_one_msg_from_server(child: &mut std::process::Child) -> Response {
     if let Some(method) = generic_json_rpc.get("method") {
         if method == "$/progress" {
             // This is a progress notification, we can ignore it
-            return get_one_msg_from_server(child);
+            return get_one_message_from_server(child);
         }
     }
+    server_message.to_string()
+}
 
-    let jsonrpc_response: Response = serde_json::from_str(server_message)
+fn get_one_response_from_server(child: &mut std::process::Child) -> Response {
+    let server_message = get_one_message_from_server(child);
+    let jsonrpc_response: Response = serde_json::from_str(&server_message)
         .expect("Failed to parse server output as JSON-RPC response!");
 
     if jsonrpc_response.clone().check_error().is_err() {
         panic!("Got an error from the server response!");
     }
     jsonrpc_response
+}
+
+
+fn get_one_notification_from_server(child: &mut std::process::Child) -> Notification<PublishDiagnostics> {
+    let server_message = get_one_message_from_server(child);
+    let raw_msg:RawMessage = RawMessage::try_parse(&server_message).unwrap().unwrap();
+    let notification: Notification<PublishDiagnostics> = raw_msg.parse_as_notification().expect(
+        "Failed to parse server output as PublishDiagnostics notification!");
+    notification
 }
 
 fn create_initialize_request() -> String {
@@ -268,17 +307,16 @@ pub fn test_01_initreq_responds_with_initres() {
 
 #[test]
 pub fn test_02_did_open_responds_with_publish_diagnostics() {
-    debug_me();
+    // debug_me();
     let mut child = setup_test();
 
     let req = create_did_open_text_document_request(&MOCK_URI, SOURCE);
     send_message(&mut child, &add_header(&req));
+    sleep();
 
-    let server_res = get_one_msg_from_server(&mut child);
-    // let diagnostics: lsp_types::PublishDiagnosticsParams = server_res
-    //     .result()
-    //     .ok()
-    //     .expect("Couldnt parse server response as PublishDiagnostics");
-    // println!("\n{:?}", diagnostics);
+    let server_res = get_one_notification_from_server(&mut child);
+    let diagnostics: lsp_types::PublishDiagnosticsParams = server_res.params;
+    println!("\n{:?}", diagnostics);
+
     teardown(&mut child);
 }
