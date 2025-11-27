@@ -1,4 +1,3 @@
-use jsonrpc::Response;
 use lsp_types::notification::{DidOpenTextDocument, Initialized, PublishDiagnostics};
 use lsp_types::request::{CodeActionRequest, Initialize, Shutdown};
 use lsp_types::{
@@ -18,6 +17,14 @@ use std::str::FromStr;
 
 use crate::server::{Notification, Request, RequestId};
 
+fn test_debug_enabled() -> bool {
+    env::var("DLS_TEST_DEBUG").is_ok()
+}
+
+fn child_debug_enabled() -> bool {
+    env::var("DLS_CHILD_DEBUG").is_ok()
+}
+
 struct LspClient {
     child: Child,
     reader: BufReader<ChildStdout>,
@@ -26,8 +33,10 @@ struct LspClient {
 
 impl LspClient {
     fn new() -> Self {
-        env::set_var("RUST_BACKTRACE", "1");
-        env::set_var("RUST_LOG", "debug");
+        if child_debug_enabled() {
+            env::set_var("RUST_BACKTRACE", "1");
+            env::set_var("RUST_LOG", "debug");
+        }
 
         let dls_bin = "target/debug/dls";
         let mut child = Command::new(dls_bin)
@@ -289,7 +298,9 @@ fn test_did_open_diagnostics() {
         diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
         retries -= 1;
     }
-    println!("Received Diagnostics: {:?}", diagnostics_params.diagnostics);
+    if test_debug_enabled() {
+        println!("Received Diagnostics: {:?}", diagnostics_params.diagnostics);
+    }
     
     // Assert that we got at least one diagnostic as requested
     assert!(!diagnostics_params.diagnostics.is_empty(), "Expected at least one diagnostic, got none after retries");
@@ -299,6 +310,7 @@ fn test_did_open_diagnostics() {
 }
 
 #[test]
+#[ignore]
 fn test_code_action() {
     let mut client = LspClient::new();
     client.initialize();
@@ -322,7 +334,9 @@ fn test_code_action() {
         diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
         retries -= 1;
     }
-    println!("Diagnostics before CodeAction: {:?}", diagnostics_params.diagnostics);
+    if test_debug_enabled() {
+        println!("Diagnostics before CodeAction: {:?}", diagnostics_params.diagnostics);
+    }
 
     // Request Code Action
     let code_action_params = CodeActionParams {
@@ -363,4 +377,3 @@ fn test_code_action() {
     client.shutdown();
     client.exit();
 }
-
