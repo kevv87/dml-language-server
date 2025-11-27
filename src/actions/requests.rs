@@ -814,18 +814,17 @@ fn rpc_error_code(code: StandardError) -> Value {
 }
 
 impl RequestAction for CodeActionRequest {
-    type Response = Vec<Command>;
+    type Response = Option<Vec<CodeActionOrCommand>>;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(vec![])
+        Ok(Some(vec![]))
     }
 
     fn handle(
         _ctx: InitActionContext,
         _params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        // TODO: figure out if we want to use this
-        // note: a "code action" is like a command tied to a code position, I think
+        // For now, return empty to indicate server supports CodeActions but has none available
         Self::fallback_response()
     }
 }

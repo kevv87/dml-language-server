@@ -30,6 +30,7 @@ pub use lsp_types::notification::{Exit as ExitNotification, ShowMessage};
 pub use lsp_types::request::Initialize as InitializeRequest;
 pub use lsp_types::request::Shutdown as ShutdownRequest;
 use lsp_types::{
+    CodeActionProviderCapability,
     DeclarationCapability,
     HoverProviderCapability,
     ImplementationProviderCapability,
@@ -679,7 +680,7 @@ fn server_caps(_ctx: &ActionContext) -> ServerCapabilities {
         document_highlight_provider: None,
         document_symbol_provider: Some(OneOf::Left(true)),
         workspace_symbol_provider: Some(OneOf::Left(true)),
-        code_action_provider: None,
+        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         document_formatting_provider: None,
         execute_command_provider: None,
         rename_provider: None,
