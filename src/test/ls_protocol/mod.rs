@@ -1,67 +1,204 @@
 use jsonrpc::Response;
-use lsp_types::notification::{DidOpenTextDocument, PublishDiagnostics};
-use lsp_types::request::Initialize;
-use lsp_types::{DidOpenTextDocumentParams, InitializeResult, TextDocumentItem, Uri};
-use serde_json;
+use lsp_types::notification::{DidOpenTextDocument, Initialized, PublishDiagnostics};
+use lsp_types::request::{CodeActionRequest, Initialize, Shutdown};
+use lsp_types::{
+    CodeActionContext, CodeActionParams, DidOpenTextDocumentParams, InitializeResult,
+    PartialResultParams, Range, TextDocumentIdentifier, TextDocumentItem, Uri, WorkDoneProgressParams,
+    CodeActionTriggerKind,
+};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use serde_json::{self, Value};
 use std::env;
-use std::io;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::marker::PhantomData;
 use std::path::Path;
-use std::process::{ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdout, Command, Stdio};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 
-use crate::server::message::RawMessage;
 use crate::server::{Notification, Request, RequestId};
-use crate::lsp_data::LSPNotification;
-use std::process;
 
-enum ServerResponses {
-    PublishDiagnostics(Notification<PublishDiagnostics>),
-    Response(Response),
+struct LspClient {
+    child: Child,
+    reader: BufReader<ChildStdout>,
+    request_id_counter: i64,
 }
 
-struct ResponseAccumulator {
-    response_buffer: Vec<ServerResponses>,
-    tokens_in_progress: Vec<String>,
-}
-
-impl ResponseAccumulator {
+impl LspClient {
     fn new() -> Self {
-        ResponseAccumulator {
-            response_buffer: Vec::new(),
-            tokens_in_progress: Vec::new(),
+        env::set_var("RUST_BACKTRACE", "1");
+        env::set_var("RUST_LOG", "debug");
+
+        let dls_bin = "target/debug/dls";
+        let mut child = Command::new(dls_bin)
+            .args(&["--linting", "true"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to start dls process");
+
+        let stdout = child.stdout.take().expect("Failed to open stdout");
+        let reader = BufReader::new(stdout);
+
+        LspClient {
+            child,
+            reader,
+            request_id_counter: 0,
         }
+    }
+
+    fn next_id(&mut self) -> RequestId {
+        self.request_id_counter += 1;
+        RequestId::from(Value::from(self.request_id_counter))
+    }
+
+    fn send_message(&mut self, message: &str) {
+        let formatted_message = format!("Content-Length: {}\r\n\r\n{}", message.len(), message);
+        let stdin = self.child.stdin.as_mut().expect("Failed to open stdin");
+        stdin
+            .write_all(formatted_message.as_bytes())
+            .expect("Failed to write to stdin");
+        stdin.flush().expect("Failed to flush stdin");
+    }
+
+    fn read_message(&mut self) -> String {
+        let mut size = None;
+        let mut buffer = String::new();
+
+        loop {
+            buffer.clear();
+            if self.reader.read_line(&mut buffer).unwrap() == 0 {
+                panic!("EOF while reading headers");
+            }
+
+            if buffer == "\r\n" {
+                break;
+            }
+
+            let parts: Vec<&str> = buffer.splitn(2, ": ").collect();
+            if parts.len() == 2 && parts[0] == "Content-Length" {
+                size = Some(parts[1].trim().parse::<usize>().unwrap());
+            }
+        }
+
+        let size = size.expect("Missing Content-Length header");
+        let mut content = vec![0; size];
+        self.reader.read_exact(&mut content).unwrap();
+
+        String::from_utf8(content).expect("Invalid UTF-8 body")
+    }
+
+    fn send_request<R>(&mut self, params: R::Params) -> RequestId
+    where
+        R: lsp_types::request::Request,
+        R::Params: Serialize,
+    {
+        let id = self.next_id();
+        let request = Request::<R> {
+            id: id.clone(),
+            received: std::time::Instant::now(),
+            params,
+            _action: PhantomData,
+        };
+        self.send_message(&request.to_string());
+        id
+    }
+
+    fn send_notification<N>(&mut self, params: N::Params)
+    where
+        N: lsp_types::notification::Notification,
+        N::Params: Serialize,
+    {
+        let notification = Notification::<N> {
+            params,
+            _action: PhantomData,
+        };
+        self.send_message(&notification.to_string());
+    }
+
+    fn wait_for_response<R>(&mut self, id: RequestId) -> R
+    where
+        R: DeserializeOwned,
+    {
+        loop {
+            let msg = self.read_message();
+            let json_val: Value = serde_json::from_str(&msg).unwrap();
+
+            if let Some(msg_id) = json_val.get("id") {
+                let msg_id = RequestId::from(msg_id.clone());
+                if msg_id == id {
+                    if let Some(result) = json_val.get("result") {
+                        return serde_json::from_value(result.clone()).unwrap();
+                    } else if let Some(error) = json_val.get("error") {
+                        panic!("Received error response: {:?}", error);
+                    }
+                }
+            }
+            // Ignore other messages (notifications, other requests)
+        }
+    }
+
+    fn wait_for_notification<N>(&mut self) -> N::Params
+    where
+        N: lsp_types::notification::Notification,
+        N::Params: DeserializeOwned,
+    {
+        loop {
+            let msg = self.read_message();
+            let json_val: Value = serde_json::from_str(&msg).unwrap();
+
+            if let Some(method) = json_val.get("method") {
+                if method == N::METHOD {
+                    if let Some(params) = json_val.get("params") {
+                        return serde_json::from_value(params.clone()).unwrap();
+                    }
+                }
+            }
+        }
+    }
+    
+    fn initialize(&mut self) -> InitializeResult {
+        let workspace_folders = Some(vec![lsp_types::WorkspaceFolder {
+            uri: Uri::from_str(&MOCK_URI_WORKSPACE).unwrap(),
+            name: "test_workspace".to_string(),
+        }]);
+        
+        #[allow(deprecated)]
+        let params = lsp_types::InitializeParams {
+            process_id: None,
+            root_path: None,
+            root_uri: None,
+            initialization_options: None,
+            capabilities: lsp_types::ClientCapabilities::default(),
+            trace: None,
+            workspace_folders,
+            client_info: None,
+            locale: None,
+            work_done_progress_params: lsp_types::WorkDoneProgressParams {
+                work_done_token: None,
+            },
+        };
+
+        let id = self.send_request::<Initialize>(params);
+        self.wait_for_response::<InitializeResult>(id)
+    }
+
+    fn shutdown(&mut self) {
+         let id = self.send_request::<Shutdown>(());
+         self.wait_for_response::<()>(id);
+    }
+
+    fn exit(&mut self) {
+        self.send_notification::<lsp_types::notification::Exit>(());
     }
 }
 
-struct TestContext {
-    child: std::process::Child,
-    response_accumulator: Arc<Mutex<ResponseAccumulator>>,
-}
-
-// Used to debug the child
-#[allow(dead_code)]
-fn wait_for_enter() {
-    println!("Press Enter to continue...");
-    io::stdout().flush().unwrap(); // Ensure the prompt is displayed
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-}
-
-#[allow(dead_code)]
-fn debug_child(child: &mut std::process::Child) {
-    println!("Child PID: {}", child.id());
-    wait_for_enter();
-}
-
-#[allow(dead_code)]
-fn debug_me() {
-    println!("My PID: {}", process::id());
-    wait_for_enter();
+impl Drop for LspClient {
+    fn drop(&mut self) {
+        // Try to kill if still running, though we should exit gracefully in tests
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
 }
 
 lazy_static::lazy_static! {
@@ -77,125 +214,6 @@ lazy_static::lazy_static! {
         let uri_string = format!("file://{}", abs_path.display());
         uri_string
     };
-}
-
-fn initialize_server(child: &mut std::process::Child) {
-    let initialize_request = create_initialize_request();
-    send_message(child, &add_header(&initialize_request));
-
-    // TODO: Accumulator should only have one message
-    // and its a InitializeResult
-    // Check both things
-    let server_res = get_one_response_from_server(child);
-
-    let _: InitializeResult = server_res
-        .result()
-        .ok()
-        .expect("Did not find an init result as response!");
-}
-
-fn setup_test() -> std::process::Child { // TODO: Devolver un acumulador tambien, struct?
-    env::set_var("RUST_BACKTRACE", "1");
-    env::set_var("RUST_LOG", "debug");
-
-    let dls_bin = "target/debug/dls";
-    let mut child = Command::new(dls_bin)
-        .args(&["--linting", "true"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to start dls process");
-    initialize_server(&mut child);
-    child
-}
-
-fn send_message(child: &mut std::process::Child, message: &str) {
-    if let Some(stdin) = child.stdin.as_mut() {
-        stdin
-            .write_all(message.as_bytes())
-            .expect("Failed to write to stdin");
-    } else {
-        panic!("Child process does not have a stdin");
-    }
-}
-
-fn finalize_server(child: &mut std::process::Child) {
-    let shutdown_request = Request::<lsp_types::request::Shutdown> {
-        id: RequestId::from(serde_json::Value::from(456)),
-        received: std::time::Instant::now(),
-        params: (),
-        _action: PhantomData,
-    }
-    .to_string();
-    send_message(child, &add_header(&shutdown_request));
-    let _shutdown_response = get_one_response_from_server(child);
-
-    let exit_notification = Notification::<lsp_types::notification::Exit> {
-        params: (),
-        _action: PhantomData,
-    }
-    .to_string();
-    send_message(child, &add_header(&exit_notification));
-}
-
-fn teardown(child: &mut std::process::Child) {
-    finalize_server(child);
-    child.wait().expect("Failed while waiting child to join!");
-}
-
-fn server_buffer_to_json(msg_buffer: &str) -> Vec<&str> {
-    let buffer_sections = msg_buffer.split("Content-Length:");
-    let json_collection = buffer_sections
-        .filter_map(|section| {
-            let trimmed_section = section.trim();
-            if trimmed_section.is_empty() || !trimmed_section.contains('{') {
-                None
-            } else {
-                let json_start = trimmed_section.find('{').unwrap();
-                let json_end = trimmed_section.rfind('}').unwrap() + 1;
-                Some(&trimmed_section[json_start..json_end])
-            }
-        })
-        .collect::<Vec<&str>>();
-    json_collection
-}
-
-fn get_content_length(stdout: &mut ChildStdout) -> usize {
-    let mut buffer = Vec::new();
-    for byte in stdout.bytes() {
-        let byte = byte.expect("Failed to read byte from stdout");
-        buffer.push(byte);
-        if byte == b'\r' {
-            break;
-        }
-    }
-    let content_length_str = String::from_utf8_lossy(&buffer);
-    let content_length = content_length_str
-        .split_whitespace()
-        .nth(1)
-        .expect("Failed to find content length")
-        .parse::<usize>()
-        .expect("Failed to parse content length");
-    content_length + 3 // Taking into consideration the prepended \r\n\r
-}
-
-fn get_server_msg(child: &mut std::process::Child) -> String {
-    let stdout = child
-        .stdout
-        .as_mut()
-        .expect("Child process does not have a stdout. Unable to read server message.");
-    let content_length = get_content_length(stdout);
-    let mut buffer = vec![0; content_length];
-    stdout
-        .read_exact(&mut buffer)
-        .expect("Failed to read the expected number of bytes from stdout");
-    String::from_utf8_lossy(&buffer)
-        .trim_end_matches('\0')
-        .to_string()
-}
-
-fn add_header(mess: &str) -> String {
-    format!("Content-Length: {}\r\n\r\n{}", mess.len(), mess)
 }
 
 static SOURCE: &str = "
@@ -225,124 +243,124 @@ bank sb_cr {
         }
     }
 }   
-
-/*
-    This is ONEEEE VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
-    and ANOTHEEEER VEEEEEERY LLOOOOOOONG COOOMMMEENTT ON A SINGLEEEE LINEEEEEEEEEEEEEE
-*/
-
 ";
 
-fn create_did_open_text_document_request(uri: &str, source: &str) -> String {
+#[test]
+fn test_lifecycle_basic() {
+    let mut client = LspClient::new();
+    
+    // Initialize
+    // This implicitly asserts that the server responds with a valid InitializeResult.
+    // If the server returns an error or invalid JSON, wait_for_response will panic.
+    let _init_result = client.initialize();
+    
+    // Initialized
+    client.send_notification::<Initialized>(lsp_types::InitializedParams {});
+    
+    // Shutdown
+    client.shutdown();
+    
+    // Exit
+    client.exit();
+}
+
+#[test]
+fn test_did_open_diagnostics() {
+    let mut client = LspClient::new();
+    client.initialize();
+    client.send_notification::<Initialized>(lsp_types::InitializedParams {});
+
     let params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem::new(
-            Uri::from_str(uri).unwrap(),
+            Uri::from_str(&MOCK_URI).unwrap(),
             "dml".to_string(),
             0,
-            source.to_string(),
+            SOURCE.to_string(),
         ),
     };
-    Notification::<DidOpenTextDocument> {
-        params,
-        _action: PhantomData,
+    client.send_notification::<DidOpenTextDocument>(params);
+
+    // Expect diagnostics
+    // The server might send multiple notifications (e.g. empty first, then populated).
+    // We wait for a notification with at least one diagnostic.
+    let mut diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+    let mut retries = 10;
+    while diagnostics_params.diagnostics.is_empty() && retries > 0 {
+        diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+        retries -= 1;
     }
-    .to_string()
+    println!("Received Diagnostics: {:?}", diagnostics_params.diagnostics);
+    
+    // Assert that we got at least one diagnostic as requested
+    assert!(!diagnostics_params.diagnostics.is_empty(), "Expected at least one diagnostic, got none after retries");
+    
+    client.shutdown();
+    client.exit();
 }
 
-fn get_one_message_from_server(child: &mut std::process::Child) -> String {
-    let output = get_server_msg(child);
-    println!("Output: {}", output);
-    let server_messages = server_buffer_to_json(&output);
-    assert_eq!(
-        server_messages.len(),
-        1,
-        "Expected one message in output, got: {:?}",
-        server_messages
-    );
+#[test]
+fn test_code_action() {
+    let mut client = LspClient::new();
+    client.initialize();
+    client.send_notification::<Initialized>(lsp_types::InitializedParams {});
 
-    let server_message = server_messages[0];
-    let generic_json_rpc: serde_json::Value =
-        serde_json::from_str(server_message).expect("Failed to parse server output!");
+    let uri = Uri::from_str(&MOCK_URI).unwrap();
+    let params = DidOpenTextDocumentParams {
+        text_document: TextDocumentItem::new(
+            uri.clone(),
+            "dml".to_string(),
+            0,
+            SOURCE.to_string(),
+        ),
+    };
+    client.send_notification::<DidOpenTextDocument>(params);
 
-    if let Some(method) = generic_json_rpc.get("method") {
-        if method == "$/progress" {
-            // This is a progress notification, we can ignore it
-            return get_one_message_from_server(child);
-        }
+    // Wait for diagnostics to ensure server has processed the file
+    let mut diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+    let mut retries = 10;
+    while diagnostics_params.diagnostics.is_empty() && retries > 0 {
+        diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+        retries -= 1;
     }
-    server_message.to_string()
-}
+    println!("Diagnostics before CodeAction: {:?}", diagnostics_params.diagnostics);
 
-fn get_one_response_from_server(child: &mut std::process::Child) -> Response {
-    let server_message = get_one_message_from_server(child);
-    let jsonrpc_response: Response = serde_json::from_str(&server_message)
-        .expect("Failed to parse server output as JSON-RPC response!");
-
-    if jsonrpc_response.clone().check_error().is_err() {
-        panic!("Got an error from the server response!");
-    }
-    jsonrpc_response
-}
-
-
-// fn get_one_notification_from_server(child: &mut std::process::Child) -> Notification<LSPNotification> {
-//     let server_message = get_one_message_from_server(child);
-//     let raw_msg:RawMessage = RawMessage::try_parse(&server_message).unwrap().unwrap();
-//     let notification: Notification<PublishDiagnostics> = raw_msg.parse_as_notification().expect(
-//         "Failed to parse server output as PublishDiagnostics notification!");
-//     notification
-// }
-
-fn create_initialize_request() -> String {
-    let workspace_folders = Some(vec![lsp_types::WorkspaceFolder {
-        uri: Uri::from_str(&MOCK_URI_WORKSPACE).unwrap(),
-        name: "test_workspace".to_string(),
-    }]);
-    #[allow(deprecated)]
-    let params = lsp_types::InitializeParams {
-        process_id: None,
-        root_path: None,
-        root_uri: None,
-        initialization_options: None,
-        capabilities: lsp_types::ClientCapabilities::default(),
-        trace: None,
-        workspace_folders: workspace_folders,
-        client_info: None,
-        locale: None,
-        work_done_progress_params: lsp_types::WorkDoneProgressParams {
+    // Request Code Action
+    let code_action_params = CodeActionParams {
+        text_document: TextDocumentIdentifier { uri },
+        range: Range {
+            start: lsp_types::Position { line: 5, character: 0 },
+            end: lsp_types::Position { line: 6, character: 0 },
+        },
+        context: CodeActionContext {
+            diagnostics: vec![],
+            only: None,
+            trigger_kind: Some(CodeActionTriggerKind::INVOKED),
+        },
+        work_done_progress_params: WorkDoneProgressParams {
             work_done_token: None,
         },
+        partial_result_params: PartialResultParams {
+            partial_result_token: None,
+        },
     };
-    let request = Request::<Initialize> {
-        id: RequestId::from(serde_json::Value::from(123)),
-        received: std::time::Instant::now(),
-        params,
-        _action: PhantomData,
-    }
-    .to_string();
-    request
+
+    let id = client.send_request::<CodeActionRequest>(code_action_params);
+    
+    // We expect this to fail or return empty for now, but the test structure is here.
+    // The user specifically asked for a test that fails or asserts the current behavior.
+    // Currently, the server returns a fallback response (empty vector).
+    // If we want it to "fail" as in "not implemented correctly yet", we might assert that we get *something* back
+    // but for now let's just assert we get the empty list which is the current behavior, 
+    // OR if the user wants a failing test, we can assert we get a specific action that doesn't exist yet.
+    
+    // Let's assume we want to verify we get a response, and later we will change this to assert specific actions.
+    let response: Option<Vec<lsp_types::CodeActionOrCommand>> = client.wait_for_response(id);
+    
+    // For now, just print it. The user said "llegar hasta la prueba (que debe fallar)".
+    // If I assert that it is NOT empty, it will fail, which matches the user's request.
+    assert!(response.is_some() && !response.unwrap().is_empty(), "Expected code actions, but got empty/none");
+
+    client.shutdown();
+    client.exit();
 }
 
-#[test]
-pub fn test_01_initreq_responds_with_initres() {
-    let mut child = setup_test();
-    teardown(&mut child);
-}
-
-#[test]
-pub fn test_02_did_open_responds_with_publish_diagnostics() {
-    // debug_me();
-    let mut child = setup_test();
-
-    let req = create_did_open_text_document_request(&MOCK_URI, SOURCE);
-    send_message(&mut child, &add_header(&req));
-
-    // TODO: Before checking results, the accumulator should have 
-    // all processes closed, main thread should wait here
-    // for the acumulator to finish (i.e the server to finish processing)
-    let server_res = get_one_notification_from_server(&mut child);
-    let diagnostics: lsp_types::PublishDiagnosticsParams = server_res.params;
-    println!("\n{:?}", diagnostics);
-
-    teardown(&mut child);
-}
