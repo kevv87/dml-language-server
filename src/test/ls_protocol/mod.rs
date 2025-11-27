@@ -10,10 +10,36 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::process::{ChildStdout, Command, Stdio};
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use crate::server::message::RawMessage;
 use crate::server::{Notification, Request, RequestId};
+use crate::lsp_data::LSPNotification;
 use std::process;
+
+enum ServerResponses {
+    PublishDiagnostics(Notification<PublishDiagnostics>),
+    Response(Response),
+}
+
+struct ResponseAccumulator {
+    response_buffer: Vec<ServerResponses>,
+    tokens_in_progress: Vec<String>,
+}
+
+impl ResponseAccumulator {
+    fn new() -> Self {
+        ResponseAccumulator {
+            response_buffer: Vec::new(),
+            tokens_in_progress: Vec::new(),
+        }
+    }
+}
+
+struct TestContext {
+    child: std::process::Child,
+    response_accumulator: Arc<Mutex<ResponseAccumulator>>,
+}
 
 // Used to debug the child
 #[allow(dead_code)]
@@ -57,6 +83,9 @@ fn initialize_server(child: &mut std::process::Child) {
     let initialize_request = create_initialize_request();
     send_message(child, &add_header(&initialize_request));
 
+    // TODO: Accumulator should only have one message
+    // and its a InitializeResult
+    // Check both things
     let server_res = get_one_response_from_server(child);
 
     let _: InitializeResult = server_res
@@ -65,7 +94,7 @@ fn initialize_server(child: &mut std::process::Child) {
         .expect("Did not find an init result as response!");
 }
 
-fn setup_test() -> std::process::Child {
+fn setup_test() -> std::process::Child { // TODO: Devolver un acumulador tambien, struct?
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("RUST_LOG", "debug");
 
@@ -99,7 +128,6 @@ fn finalize_server(child: &mut std::process::Child) {
     }
     .to_string();
     send_message(child, &add_header(&shutdown_request));
-    sleep();
     let _shutdown_response = get_one_response_from_server(child);
 
     let exit_notification = Notification::<lsp_types::notification::Exit> {
@@ -108,10 +136,6 @@ fn finalize_server(child: &mut std::process::Child) {
     }
     .to_string();
     send_message(child, &add_header(&exit_notification));
-}
-
-fn sleep(){
-    std::thread::sleep(std::time::Duration::from_millis(100));
 }
 
 fn teardown(child: &mut std::process::Child) {
@@ -261,13 +285,13 @@ fn get_one_response_from_server(child: &mut std::process::Child) -> Response {
 }
 
 
-fn get_one_notification_from_server(child: &mut std::process::Child) -> Notification<PublishDiagnostics> {
-    let server_message = get_one_message_from_server(child);
-    let raw_msg:RawMessage = RawMessage::try_parse(&server_message).unwrap().unwrap();
-    let notification: Notification<PublishDiagnostics> = raw_msg.parse_as_notification().expect(
-        "Failed to parse server output as PublishDiagnostics notification!");
-    notification
-}
+// fn get_one_notification_from_server(child: &mut std::process::Child) -> Notification<LSPNotification> {
+//     let server_message = get_one_message_from_server(child);
+//     let raw_msg:RawMessage = RawMessage::try_parse(&server_message).unwrap().unwrap();
+//     let notification: Notification<PublishDiagnostics> = raw_msg.parse_as_notification().expect(
+//         "Failed to parse server output as PublishDiagnostics notification!");
+//     notification
+// }
 
 fn create_initialize_request() -> String {
     let workspace_folders = Some(vec![lsp_types::WorkspaceFolder {
@@ -312,8 +336,10 @@ pub fn test_02_did_open_responds_with_publish_diagnostics() {
 
     let req = create_did_open_text_document_request(&MOCK_URI, SOURCE);
     send_message(&mut child, &add_header(&req));
-    sleep();
 
+    // TODO: Before checking results, the accumulator should have 
+    // all processes closed, main thread should wait here
+    // for the acumulator to finish (i.e the server to finish processing)
     let server_res = get_one_notification_from_server(&mut child);
     let diagnostics: lsp_types::PublishDiagnosticsParams = server_res.params;
     println!("\n{:?}", diagnostics);
