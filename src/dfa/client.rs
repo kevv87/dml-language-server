@@ -54,7 +54,7 @@ struct MessageReader {
 enum ServerMessage {
     ProgressStart,
     ProgressEnd,
-    Diagnostics(CanonPath, Vec<Diagnostic>),
+    Diagnostics(CanonPath, Vec<lsp_types::Diagnostic>),
     Response(serde_json::Value),
     Ack,
     Error(ExitStatus),
@@ -96,11 +96,11 @@ impl RpcErrorKind {
     }
 }
 
-pub struct ClientInterface {
+pub(crate) struct ClientInterface {
     server: Popen,
     reader: channel::Receiver<String>,
     _reading_thread: JoinHandle<()>,
-    diagnostics: HashMap<CanonPath, Vec<Diagnostic>>,
+    diagnostics: HashMap<CanonPath, Vec<lsp_types::Diagnostic>>,
     waiting_for_received_diag: HashSet<CanonPath>,
     waiting_for_received_lint: HashSet<CanonPath>,
     linting_enabled: bool,
@@ -232,9 +232,7 @@ impl ClientInterface {
                 self.waiting_for_received_lint.remove(&file);
             }
         Ok(ServerMessage::Diagnostics(
-            file, diagnostic_params.diagnostics
-                .iter().cloned().map(Diagnostic::from)
-                .collect()))
+            file, diagnostic_params.diagnostics))
     }
 
     fn receive_progress(&mut self, params: serde_json::Value)
@@ -390,8 +388,8 @@ impl ClientInterface {
             for diag in diagnostics {
                 println!("{} line {}: {}",
                          path.to_str().unwrap(),
-                         diag.line,
-                         diag.desc);
+                         diag.range.start.line,
+                         diag.message);
             }
         }
     }

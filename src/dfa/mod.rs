@@ -5,6 +5,8 @@ pub mod client;
 #[cfg(test)]
 mod test;
 
+pub(crate) mod text_edit;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
