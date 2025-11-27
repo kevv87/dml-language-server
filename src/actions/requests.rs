@@ -822,10 +822,43 @@ impl RequestAction for CodeActionRequest {
 
     fn handle(
         _ctx: InitActionContext,
-        _params: Self::Params,
+        params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        // For now, return empty to indicate server supports CodeActions but has none available
-        Self::fallback_response()
+        debug!("CodeAction request with {} diagnostics", params.context.diagnostics.len());
+        let mut actions = vec![];
+        
+        for diagnostic in &params.context.diagnostics {
+            if let Some(data) = &diagnostic.data {
+                debug!("Diagnostic has data: {:?}", data);
+                if let Ok(text_edit) = serde_json::from_value::<lsp_types::TextEdit>(data.clone()) {
+                    debug!("Successfully deserialized TextEdit: {:?}", text_edit);
+                    let mut changes = std::collections::HashMap::new();
+                    changes.insert(params.text_document.uri.clone(), vec![text_edit]);
+                    
+                    let action = lsp_types::CodeAction {
+                        title: format!("Fix: {}", diagnostic.message),
+                        kind: Some(lsp_types::CodeActionKind::QUICKFIX),
+                        diagnostics: Some(vec![diagnostic.clone()]),
+                        edit: Some(lsp_types::WorkspaceEdit {
+                            changes: Some(changes),
+                            document_changes: None,
+                            change_annotations: None,
+                        }),
+                        command: None,
+                        is_preferred: None,
+                        disabled: None,
+                        data: None,
+                    };
+                    
+                    actions.push(lsp_types::CodeActionOrCommand::CodeAction(action));
+                } else {
+                    debug!("Failed to deserialize data as TextEdit");
+                }
+            }
+        }
+        
+        debug!("Returning {} code actions", actions.len());
+        Ok(Some(actions))
     }
 }
 

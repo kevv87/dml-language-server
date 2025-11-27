@@ -324,13 +324,13 @@ fn test_code_action() {
     client.initialize();
     client.send_notification::<Initialized>(lsp_types::InitializedParams {});
 
-    let uri = Uri::from_str(&MOCK_URI).unwrap();
+    let uri = Uri::from_str(&MOCK_URI_AUTOFIX).unwrap();
     let params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem::new(
             uri.clone(),
             "dml".to_string(),
             0,
-            SOURCE.to_string(),
+            SOURCE_AUTOFIX.to_string(),
         ),
     };
     client.send_notification::<DidOpenTextDocument>(params);
@@ -348,11 +348,11 @@ fn test_code_action() {
     let code_action_params = CodeActionParams {
         text_document: TextDocumentIdentifier { uri },
         range: Range {
-            start: lsp_types::Position { line: 5, character: 0 },
-            end: lsp_types::Position { line: 6, character: 0 },
+            start: lsp_types::Position { line: 3, character: 0 },
+            end: lsp_types::Position { line: 4, character: 0 },
         },
         context: CodeActionContext {
-            diagnostics: vec![],
+            diagnostics: diagnostics_params.diagnostics.clone(),
             only: None,
             trigger_kind: Some(CodeActionTriggerKind::INVOKED),
         },
@@ -372,9 +372,18 @@ fn test_code_action() {
         println!("CodeAction response: {:?}", response);
     }
     
-    // Assert server responds with Some (supports CodeActions) but empty (no actions yet)
     assert!(response.is_some(), "Server should support CodeActions");
-    assert!(response.unwrap().is_empty(), "No code actions implemented yet");
+    let actions = response.unwrap();
+    assert!(!actions.is_empty(), "Should have code actions for diagnostics with fixes");
+    
+    let has_quickfix = actions.iter().any(|action| {
+        if let lsp_types::CodeActionOrCommand::CodeAction(ca) = action {
+            ca.kind == Some(lsp_types::CodeActionKind::QUICKFIX)
+        } else {
+            false
+        }
+    });
+    assert!(has_quickfix, "Should have at least one quickfix action");
 
     client.shutdown();
     client.exit();
@@ -413,6 +422,121 @@ fn test_diagnostic_has_autofix_data() {
         .any(|d| d.data.is_some());
     
     assert!(has_data, "Expected at least one diagnostic with data field containing fix");
+
+    client.shutdown();
+    client.exit();
+}
+
+#[test]
+fn test_code_action_fixes_match_diagnostics() {
+    let mut client = LspClient::new();
+    client.initialize();
+    client.send_notification::<Initialized>(lsp_types::InitializedParams {});
+
+    let uri = Uri::from_str(&MOCK_URI_AUTOFIX).unwrap();
+    let params = DidOpenTextDocumentParams {
+        text_document: TextDocumentItem::new(
+            uri.clone(),
+            "dml".to_string(),
+            0,
+            SOURCE_AUTOFIX.to_string(),
+        ),
+    };
+    client.send_notification::<DidOpenTextDocument>(params);
+
+    let mut diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+    let mut retries = 10;
+    while diagnostics_params.diagnostics.is_empty() && retries > 0 {
+        diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+        retries -= 1;
+    }
+    
+    if test_debug_enabled() {
+        println!("Diagnostics: {:?}", diagnostics_params.diagnostics);
+    }
+
+    assert!(!diagnostics_params.diagnostics.is_empty(), "Expected diagnostics");
+    
+    let diagnostics_with_fixes: Vec<_> = diagnostics_params.diagnostics.iter()
+        .filter(|d| d.data.is_some())
+        .collect();
+    
+    assert!(!diagnostics_with_fixes.is_empty(), "Expected diagnostics with fixes");
+
+    let code_action_params = CodeActionParams {
+        text_document: TextDocumentIdentifier { uri: uri.clone() },
+        range: Range {
+            start: lsp_types::Position { line: 0, character: 0 },
+            end: lsp_types::Position { line: 10, character: 0 },
+        },
+        context: CodeActionContext {
+            diagnostics: diagnostics_params.diagnostics.clone(),
+            only: None,
+            trigger_kind: Some(CodeActionTriggerKind::INVOKED),
+        },
+        work_done_progress_params: WorkDoneProgressParams {
+            work_done_token: None,
+        },
+        partial_result_params: PartialResultParams {
+            partial_result_token: None,
+        },
+    };
+
+    let id = client.send_request::<CodeActionRequest>(code_action_params);
+    let response: Option<Vec<lsp_types::CodeActionOrCommand>> = client.wait_for_response(id);
+    
+    assert!(response.is_some(), "Expected code action response");
+    let actions = response.unwrap();
+    
+    assert_eq!(actions.len(), diagnostics_with_fixes.len(), 
+        "Should have one CodeAction per diagnostic with fix");
+
+    for action in &actions {
+        if let lsp_types::CodeActionOrCommand::CodeAction(ca) = action {
+            assert_eq!(ca.kind, Some(lsp_types::CodeActionKind::QUICKFIX), 
+                "All actions should be QuickFix");
+            
+            assert!(ca.title.starts_with("Fix: "), 
+                "Title should start with 'Fix: '");
+            
+            assert!(ca.diagnostics.is_some() && ca.diagnostics.as_ref().unwrap().len() == 1,
+                "Should have exactly one associated diagnostic");
+            
+            let associated_diagnostic = &ca.diagnostics.as_ref().unwrap()[0];
+            assert!(associated_diagnostic.data.is_some(), 
+                "Associated diagnostic should have data");
+            
+            assert!(ca.edit.is_some(), "Should have WorkspaceEdit");
+            let edit = ca.edit.as_ref().unwrap();
+            
+            assert!(edit.changes.is_some(), "WorkspaceEdit should have changes");
+            let changes = edit.changes.as_ref().unwrap();
+            
+            assert_eq!(changes.len(), 1, "Should edit exactly one file");
+            assert!(changes.contains_key(&uri), "Should edit the correct file");
+            
+            let text_edits = &changes[&uri];
+            assert_eq!(text_edits.len(), 1, "Should have exactly one TextEdit per action");
+            
+            let text_edit = &text_edits[0];
+            let original_fix: lsp_types::TextEdit = serde_json::from_value(
+                associated_diagnostic.data.clone().unwrap()
+            ).expect("Should deserialize fix from diagnostic.data");
+            
+            assert_eq!(text_edit.range, original_fix.range, 
+                "TextEdit range should match diagnostic fix range");
+            assert_eq!(text_edit.new_text, original_fix.new_text,
+                "TextEdit new_text should match diagnostic fix new_text");
+            
+            if test_debug_enabled() {
+                println!("✓ Verified CodeAction: {}", ca.title);
+                println!("  Range: {:?}", text_edit.range);
+                println!("  NewText: {:?}", text_edit.new_text);
+            }
+        } else {
+            panic!("Expected CodeAction, got Command");
+        }
+    }
 
     client.shutdown();
     client.exit();
