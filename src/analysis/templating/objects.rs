@@ -1215,6 +1215,7 @@ fn resolve_parameter(obj_loc: &ZeroSpan,
                            .first().unwrap().0.span(),
                            "Declared here".to_string())],
             severity: Some(DiagnosticSeverity::ERROR),
+            fix: None,
         });
     }
 
@@ -1236,6 +1237,7 @@ fn resolve_parameter(obj_loc: &ZeroSpan,
                             None
                         }).collect(),
                     severity: Some(DiagnosticSeverity::ERROR),
+                    fix: None,
                 });
             }
             let def = auto_parameters.get(name).unwrap_or(
@@ -1282,6 +1284,7 @@ fn resolve_parameter(obj_loc: &ZeroSpan,
                              "Conflicting assignment here"
                              .to_string())).collect(),
             severity: Some(DiagnosticSeverity::ERROR),
+            fix: None,
         });
     }
 
@@ -1299,6 +1302,7 @@ fn resolve_parameter(obj_loc: &ZeroSpan,
                             "Non-default declaration here"
                             .to_string())).collect(),
             severity: Some(DiagnosticSeverity::ERROR),
+            fix: None,
         });
     }
     DMLAmbiguousDef::new(
@@ -1331,6 +1335,7 @@ fn param_invariants(object:&mut DMLCompositeObject,
                                   in register".to_string(),
                     related: vec![],
                     severity: Some(DiagnosticSeverity::ERROR),
+                    fix: None,
                 });
             }
         },
@@ -1453,6 +1458,7 @@ fn collect_symbols(parameters: &[DMLParameter],
                     description: "unguarded error statement".to_string(),
                     related: vec![],
                     severity: Some(DiagnosticSeverity::ERROR),
+                    fix: None,
                 });
             }
         }
@@ -1645,6 +1651,7 @@ fn collect_symbols(parameters: &[DMLParameter],
                     |s|(*s,
                         "also declared here".to_string())).collect(),
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         }
     }
@@ -1678,6 +1685,7 @@ fn merge_composite_subobj<'c>(name: String,
             related: kind_collisions.iter().map(
                 |l|(*(*l),
                     "mismatching type here".to_string())).collect(),
+            fix: None,
         });
     }
 
@@ -1710,6 +1718,7 @@ fn merge_composite_subobj<'c>(name: String,
                               in object declaration".to_string(),
                 related,
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         }
         for ((auth_decl, mismatches), other_decl) in
@@ -1732,6 +1741,7 @@ fn merge_composite_subobj<'c>(name: String,
                        for this array variable".to_string(),
                 related: vec![],
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         }
         if !mismatches.is_empty() {
@@ -1743,6 +1753,7 @@ fn merge_composite_subobj<'c>(name: String,
                     |s|(*(*s),
                         "mismatch here".to_string())).collect(),
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         }
     }
@@ -1901,6 +1912,7 @@ fn add_methods(obj: &mut DMLCompositeObject,
                                 "Overrides this non-shared method".to_string()))
                             .collect(),
                         severity: Some(DiagnosticSeverity::ERROR),
+                        fix: None,
                     });
                 }
                 // The actual shared method "codegenning" is done later
@@ -1939,6 +1951,7 @@ fn add_methods(obj: &mut DMLCompositeObject,
                         related: vec![(method.name.span,
                                        "overridden here".to_string())],
                         severity: Some(DiagnosticSeverity::ERROR),
+                        fix: None,
                     });
                 }
 
@@ -1978,6 +1991,7 @@ fn check_trait_overrides(obj: &DMLCompositeObject,
             description: format!("Name collision on '{}'", name),
             severity: Some(DiagnosticSeverity::ERROR),
             related: vec![(coll_loc, "Previously defined here".to_string())],
+            fix: None,
         });
     }
     for templ in obj.templates.values() {
@@ -2056,6 +2070,7 @@ fn check_trait_overrides(obj: &DMLCompositeObject,
                                 "Template defined here".to_string()
                             )],
                             severity: Some(DiagnosticSeverity::ERROR),
+                            fix: None,
                         });
                     }
                 }

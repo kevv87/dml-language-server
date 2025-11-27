@@ -224,6 +224,12 @@ lazy_static::lazy_static! {
         let uri_string = format!("file://{}", abs_path.display());
         uri_string
     };
+    static ref MOCK_URI_AUTOFIX: String = {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let abs_path = Path::new(manifest_dir).join("example_files/autofix.dml");
+        let uri_string = format!("file://{}", abs_path.display());
+        uri_string
+    };
 }
 
 static SOURCE: &str = "
@@ -253,6 +259,12 @@ bank sb_cr {
         }
     }
 }   
+";
+
+static SOURCE_AUTOFIX: &str = "
+dml 1.4;
+
+method this_is_some_method() {return 0;}
 ";
 
 #[test]
@@ -363,6 +375,44 @@ fn test_code_action() {
     // Assert server responds with Some (supports CodeActions) but empty (no actions yet)
     assert!(response.is_some(), "Server should support CodeActions");
     assert!(response.unwrap().is_empty(), "No code actions implemented yet");
+
+    client.shutdown();
+    client.exit();
+}
+
+#[test]
+fn test_diagnostic_has_autofix_data() {
+    let mut client = LspClient::new();
+    client.initialize();
+    client.send_notification::<Initialized>(lsp_types::InitializedParams {});
+
+    let params = DidOpenTextDocumentParams {
+        text_document: TextDocumentItem::new(
+            Uri::from_str(&MOCK_URI_AUTOFIX).unwrap(),
+            "dml".to_string(),
+            0,
+            SOURCE_AUTOFIX.to_string(),
+        ),
+    };
+    client.send_notification::<DidOpenTextDocument>(params);
+
+    let mut diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+    let mut retries = 10;
+    while diagnostics_params.diagnostics.is_empty() && retries > 0 {
+        diagnostics_params = client.wait_for_notification::<PublishDiagnostics>();
+        retries -= 1;
+    }
+    
+    if test_debug_enabled() {
+        println!("Received Diagnostics: {:?}", diagnostics_params.diagnostics);
+    }
+
+    assert!(!diagnostics_params.diagnostics.is_empty(), "Expected diagnostics with autofix");
+    
+    let has_data = diagnostics_params.diagnostics.iter()
+        .any(|d| d.data.is_some());
+    
+    assert!(has_data, "Expected at least one diagnostic with data field containing fix");
 
     client.shutdown();
     client.exit();

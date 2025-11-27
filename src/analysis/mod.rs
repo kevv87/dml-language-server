@@ -211,6 +211,7 @@ pub struct DMLError {
     pub description: String,
     pub severity: Option<DiagnosticSeverity>,
     pub related: Vec<(ZeroSpan, String)>,
+    pub fix: Option<lsp_types::TextEdit>,
 }
 
 impl Hash for DMLError {
@@ -230,18 +231,29 @@ impl Hash for DMLError {
 
 impl DMLError {
     pub fn to_diagnostic(&self) -> Diagnostic {
-        Diagnostic::new(
-            dls_to_range(self.span.range),
-            self.severity, None, None,
-            self.description.clone(),
-            Some(
+        let data = self.fix.as_ref()
+            .and_then(|fix| serde_json::to_value(fix).ok());
+        
+        if self.fix.is_some() {
+            log::debug!("DMLError has fix, data: {:?}", data);
+        }
+        
+        Diagnostic {
+            range: dls_to_range(self.span.range),
+            severity: self.severity,
+            code: None,
+            code_description: None,
+            source: None,
+            message: self.description.clone(),
+            related_information: Some(
                 self.related.iter().map(
                     |(span, desc)|DiagnosticRelatedInformation {
                         location: dls_to_location(span),
                         message: desc.clone(),
                     }).collect()),
-            None
-        )
+            tags: None,
+            data,
+        }
     }
 }
 
@@ -258,6 +270,7 @@ impl LocalDMLError {
             description: self.description,
             severity: Some(DiagnosticSeverity::ERROR),
             related: vec![],
+            fix: None,
         }
     }
     pub fn to_diagnostic(&self) -> Diagnostic {
@@ -270,6 +283,7 @@ impl LocalDMLError {
             description: self.description,
             related: vec![],
             severity: Some(DiagnosticSeverity::WARNING),
+            fix: None,
         }
     }
 }
@@ -1321,6 +1335,7 @@ impl IsolatedAnalysis {
                 // TODO: Could report the original declaration here, but they
                 // are very close in source so probably unneccessary
                 related: vec![],
+                fix: None
             });
         }
         for invalid_provisional in &provisionals.invalid_provisionals {
@@ -1331,6 +1346,7 @@ impl IsolatedAnalysis {
                                      invalid_provisional.val),
                 severity: Some(DiagnosticSeverity::ERROR),
                 related: vec![],
+                fix: None
             });
         }
 
@@ -1703,6 +1719,7 @@ impl DeviceAnalysis {
                             .obj.object.span,
                         "Previously defined here".to_string()
                     )],
+                    fix: None
                 });
             } else {
                 unique_templates.insert(name.as_str(), template);

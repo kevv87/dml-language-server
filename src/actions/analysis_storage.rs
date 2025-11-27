@@ -733,6 +733,7 @@ impl AnalysisStorage {
                                                   file 'dml-builtins.dml'".to_string(),
                                     related: vec![],
                                     severity: Some(DiagnosticSeverity::ERROR),
+                                    fix: None
                                 });
                     }
                 }

@@ -128,7 +128,13 @@ impl LinterAnalysis {
         let local_lint_errors = begin_style_check(original_analysis.ast, file.text, &rules)?;
         let mut lint_errors = vec![];
         for entry in local_lint_errors {
-            lint_errors.push(entry.error.warning_with_file(path));
+            let has_fix = entry.fix.is_some();
+            let mut error = entry.error.warning_with_file(path);
+            error.fix = entry.fix;
+            if has_fix {
+                debug!("Lint error has fix: {:?}", error.fix);
+            }
+            lint_errors.push(error);
         }
 
         let res = LinterAnalysis {

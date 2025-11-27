@@ -578,6 +578,7 @@ pub fn rank_templates_aux<'t>(mut templates: HashMap<&'t str,
                                     missing_template_name),
                                 related: vec![],
                                 severity: Some(DiagnosticSeverity::ERROR),
+                                fix: None,
                             });
                     },
                     inf => {
@@ -589,8 +590,9 @@ pub fn rank_templates_aux<'t>(mut templates: HashMap<&'t str,
                                     description: format!(
                                         "No template; '{}'",
                                         missing_template_name),
-                                related: vec![],
-                                severity: Some(DiagnosticSeverity::ERROR),
+                                    related: vec![],
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                    fix: None,
                                 });
                         }
                     }
@@ -674,6 +676,7 @@ pub fn rank_templates_aux<'t>(mut templates: HashMap<&'t str,
                 severity: Some(DiagnosticSeverity::ERROR),
                 related: is_or_imp_sites.into_iter().map(|i|(
                     *i, "Imported through here".to_string())).collect(),
+                fix: None,
             });
 
             // Break the cycle by removing the is-es (or imports) from the

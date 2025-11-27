@@ -68,6 +68,7 @@ pub trait Rule {
         fix: TextEdit
     ) {
         self.push_err(acc, range);
+        log::debug!("Adding fix to lint error: {:?}", fix);
         acc.last_mut().unwrap().fix = Some(fix);
     }
 }

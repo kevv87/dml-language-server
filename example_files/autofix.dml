@@ -1,0 +1,3 @@
+dml 1.4;
+
+method this_is_some_method() {return 0;}

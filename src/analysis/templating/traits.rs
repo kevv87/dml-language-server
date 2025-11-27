@@ -296,6 +296,7 @@ impl DMLTrait {
                     severity: Some(DiagnosticSeverity::ERROR),
                     related: vec![(used[&name],
                                    "Previously defined here".into())],
+                    fix: None,
                 });
                 false
             } else {
@@ -410,6 +411,7 @@ impl DMLTrait {
                                     related: vec![
                                         (undermeth.name.span,
                                          "Overridden definition here".into())],
+                                    fix: None,
                                 });
                             }
                             if !undermeth.default && !undermeth.is_abstract()  {
@@ -423,6 +425,7 @@ impl DMLTrait {
                                          "Attempted to override this \
                                           declaration".into())],
                                     severity: Some(DiagnosticSeverity::ERROR),
+                                    fix: None,
                                 });
                             }
                             meth.check_override(undermeth, report);
@@ -439,6 +442,7 @@ impl DMLTrait {
                                 related: vec![
                                     (invalid.name.span,
                                      "Previously defined here".into())],
+                                fix: None,
                             });
                         }
                     }
@@ -466,6 +470,7 @@ impl DMLTrait {
                         related: vec![(*tr.get_member(&decl.name.val).unwrap()
                                        .location(),
                                        "Previously defined here".into())],
+                        fix: None,
                     });
                 }
             }
@@ -598,6 +603,7 @@ where
                              t.name))
                 }).collect(),
             severity: Some(DiagnosticSeverity::ERROR),
+            fix: None,
         });
     }
     trace!("Conflicting defs {:?}", conflicting_defs);
@@ -617,6 +623,7 @@ where
                          t.name))
             }).collect(),
             severity: Some(DiagnosticSeverity::ERROR),
+            fix: None,
         });
     }
     trace!("Resulting map is {:?}", map);

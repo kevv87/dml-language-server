@@ -67,6 +67,7 @@ pub fn eval_method_args(args: &[MethodArgument], report: &mut Vec<DMLError>)
                                             " struct type in argument type",
                                         related: vec![],
                                         severity: Some(DiagnosticSeverity::ERROR),
+                                        fix: None
                                     });
                             }
                             DMLMethodArg::Typed(Declaration {
@@ -96,6 +97,7 @@ pub fn eval_method_returns(returns: &[DMLType], report: &mut Vec<DMLError>)
                     "Cannot use anonymous struct type in return type".into(),
                     related: vec![],
                     severity: Some(DiagnosticSeverity::ERROR),
+                    fix: None,
                 });
         }
         if structs.is_empty() {
@@ -167,6 +169,7 @@ pub trait MethodDeclaration : DMLNamedMember + MaybeAbstract {
                     *overridden.location(),
                     "Non-throwing method declared here".to_string())],
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         } else if !self.throws() && overridden.throws() {
             report.push(DMLError {
@@ -176,6 +179,7 @@ pub trait MethodDeclaration : DMLNamedMember + MaybeAbstract {
                 related: vec![(*overridden.location(),
                                "Throwing method declared here".to_string())],
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         }
         if self.args().len() != overridden.args().len() {
@@ -186,6 +190,7 @@ pub trait MethodDeclaration : DMLNamedMember + MaybeAbstract {
                 related: vec![(*overridden.location(),
                                "Overridden method declared here".to_string())],
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         }
         for (arg1, arg2) in self.args().iter().zip(overridden.args()) {
@@ -198,6 +203,7 @@ pub trait MethodDeclaration : DMLNamedMember + MaybeAbstract {
                                    "Corresponding argument declared here"
                                    .to_string())],
                     severity: Some(DiagnosticSeverity::ERROR),
+                    fix: None,
                 });
             }
         }
@@ -211,6 +217,7 @@ pub trait MethodDeclaration : DMLNamedMember + MaybeAbstract {
                     *overridden.location(),
                     "Overridden method declared here".to_string())],
                 severity: Some(DiagnosticSeverity::ERROR),
+                fix: None,
             });
         }
         for (type1, type2) in self.returns().iter().zip(overridden.returns()) {
@@ -223,6 +230,7 @@ pub trait MethodDeclaration : DMLNamedMember + MaybeAbstract {
                                    "Corresponding return type declared here"
                                    .to_string())],
                     severity: Some(DiagnosticSeverity::ERROR),
+                    fix: None,
                 });
             }
         }
