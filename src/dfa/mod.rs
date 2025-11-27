@@ -10,9 +10,10 @@ pub(crate) mod text_edit;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
-use client::ClientInterface;
 use crate::config::Config;
 use subprocess::ExitStatus;
+
+pub use client::ClientInterface;
 
 pub struct AnalysisRequest {
     pub files: Vec<PathBuf>,

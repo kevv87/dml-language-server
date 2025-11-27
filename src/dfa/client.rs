@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::thread::{self, JoinHandle};
 
-use anyhow;
+use anyhow::{anyhow, Result as AnyhowResult};
 use jsonrpc::error::{standard_error, RpcError,
     StandardError::{self, ParseError, InvalidRequest}};
 use thiserror::Error;
@@ -96,7 +96,7 @@ impl RpcErrorKind {
     }
 }
 
-pub(crate) struct ClientInterface {
+pub struct ClientInterface {
     server: Popen,
     reader: channel::Receiver<String>,
     _reading_thread: JoinHandle<()>,
@@ -409,5 +409,63 @@ impl ClientInterface {
         // panic in a server/subserver thread
         self.server.wait_timeout(Duration::from_millis(1000))?;
         Ok(())
+    }
+
+    pub(crate) fn request_code_actions(
+        &mut self,
+        uri: lsp_types::Uri,
+        range: lsp_types::Range,
+        diagnostics: Vec<lsp_types::Diagnostic>,
+    ) -> anyhow::Result<Vec<lsp_types::CodeAction>> {
+        use crate::server::Request;
+        use std::marker::PhantomData;
+        use std::time::Instant;
+        
+        let params = lsp_types::CodeActionParams {
+            text_document: lsp_types::TextDocumentIdentifier { uri },
+            range,
+            context: lsp_types::CodeActionContext {
+                diagnostics,
+                only: None,
+                trigger_kind: None,
+            },
+            work_done_progress_params: lsp_types::WorkDoneProgressParams {
+                work_done_token: None,
+            },
+            partial_result_params: lsp_types::PartialResultParams {
+                partial_result_token: None,
+            },
+        };
+        
+        let request = Request::<lsp_types::request::CodeActionRequest> {
+            id: serde_json::json!(1).into(),
+            params,
+            received: Instant::now(),
+            _action: PhantomData,
+        };
+        
+        self.send(request.to_string())?;
+        
+        match self.receive() {
+            ServerMessage::Response(value) => {
+                let response: Option<Vec<lsp_types::CodeActionOrCommand>> = 
+                    serde_json::from_value(value)
+                        .map_err(|e| anyhow!("Failed to parse CodeAction response: {}", e))?;
+                
+                let actions = response.unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|item| {
+                        if let lsp_types::CodeActionOrCommand::CodeAction(action) = item {
+                            Some(action)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                
+                Ok(actions)
+            },
+            other => Err(anyhow!("Expected Response, got {:?}", other)),
+        }
     }
 }
