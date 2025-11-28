@@ -4,7 +4,6 @@
 use ropey::Rope;
 use lsp_types::{Position, Range, TextEdit};
 use anyhow::{anyhow, Result};
-use std::fs::File;
 use std::path::Path;
 
 struct TextBuffer {
@@ -12,8 +11,8 @@ struct TextBuffer {
 }
 
 impl TextBuffer {
-    fn from_file(path: &Path) -> Result<Self> {
-        let rope = Rope::from_reader(File::open(path)?)?;
+    fn from_str(content: &str) -> Result<Self> {
+        let rope = Rope::from_str(content);
         Ok(Self { rope })
     }
 
@@ -62,14 +61,14 @@ impl TextBuffer {
     }
 
     fn write_to_file(&self, path: &Path) -> Result<()> {
-        let mut file = File::create(path)?;
+        let mut file = std::fs::File::create(path)?;
         self.rope.write_to(&mut file)?;
         Ok(())
     }
 }
 
-pub(crate) fn apply_edits_to_file(path: &Path, edits: &[TextEdit]) -> Result<()> {
-    let mut buffer = TextBuffer::from_file(path)?;
+pub(crate) fn apply_edits_to_content(content: &str, path: &Path, edits: &[TextEdit]) -> Result<()> {
+    let mut buffer = TextBuffer::from_str(content)?;
     buffer.apply_edits(edits)?;
     buffer.write_to_file(path)?;
     Ok(())

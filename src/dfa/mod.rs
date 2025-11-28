@@ -182,12 +182,14 @@ fn apply_fixes_to_files(
             continue;
         }
         
+        let file_content = std::fs::read_to_string(file)?;
+        
         if text_surgery::has_conflicting_edits(&edits) {
             record_skipped_fix(result, file, "conflicting edits detected");
             continue;
         }
         
-        text_surgery::apply_edits_to_file(file, &edits)?;
+        text_surgery::apply_edits_to_content(&file_content, file, &edits)?;
         result.fixes_applied.insert(file.clone(), edits.len());
     }
     
