@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::thread::{self, JoinHandle};
 
-use anyhow::{anyhow, Result as AnyhowResult};
+use anyhow::anyhow;
 use jsonrpc::error::{standard_error, RpcError,
     StandardError::{self, ParseError, InvalidRequest}};
 use thiserror::Error;
@@ -396,6 +396,10 @@ impl ClientInterface {
 
     pub fn no_errors(&self) -> bool {
         self.diagnostics.is_empty()
+    }
+
+    pub(crate) fn get_diagnostics(&self, path: &Path) -> Option<&Vec<lsp_types::Diagnostic>> {
+        self.diagnostics.get(&CanonPath::from(path))
     }
 
     pub fn shutdown(&mut self) -> anyhow::Result<()> {

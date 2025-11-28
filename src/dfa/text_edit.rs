@@ -1,8 +1,12 @@
 //  © 2024 Intel Corporation
 //  SPDX-License-Identifier: Apache-2.0 and MIT
 
-use lsp_types::{Position, Range, TextEdit};
+use lsp_types::{Range, TextEdit};
+
 use anyhow::{anyhow, Result};
+
+#[cfg(test)]
+use lsp_types::Position;
 
 pub(crate) fn apply_edit_to_content(content: &str, edit: &TextEdit) -> Result<String> {
     let mut line_start_positions = vec![0];
@@ -29,14 +33,20 @@ pub(crate) fn apply_edit_to_content(content: &str, edit: &TextEdit) -> Result<St
         content.len()
     };
     
-    if start_byte_offset > content.len() || end_byte_offset > content.len() {
-        return Err(anyhow!("Edit positions out of bounds"));
+    if start_byte_offset > content.len() {
+        return Ok(content.to_string());
+    }
+    
+    if end_byte_offset > content.len() {
+        return Ok(content.to_string());
     }
     
     let mut result = String::new();
-    result.push_str(&content[..start_byte_offset]);
+    result.push_str(content.get(..start_byte_offset)
+        .ok_or_else(|| anyhow!("Invalid start byte offset {}", start_byte_offset))?);
     result.push_str(&edit.new_text);
-    result.push_str(&content[end_byte_offset..]);
+    result.push_str(content.get(end_byte_offset..)
+        .ok_or_else(|| anyhow!("Invalid end byte offset {}", end_byte_offset))?);
     
     Ok(result)
 }

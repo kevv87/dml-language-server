@@ -103,13 +103,13 @@ impl SpBracesRule {
         TextEdit {
             range: lsp_types::Range::new(
                 Position::new(
-                    _location.lbrace.one_indexed().row_start.0,
-                    _location.lbrace.one_indexed().col_start.0),
+                    _location.lbrace.row_end.0,
+                    _location.lbrace.col_end.0),
                 Position::new(
-                    _location.lbrace.one_indexed().row_start.0,
-                    _location.lbrace.one_indexed().col_start.0)
+                    _location.lbrace.row_end.0,
+                    _location.lbrace.col_end.0)
             ),
-            new_text: "{ ".to_string(),
+            new_text: " ".to_string(),
         }
     }
 
@@ -117,13 +117,13 @@ impl SpBracesRule {
         TextEdit {
             range: lsp_types::Range::new(
                 Position::new(
-                    _location.rbrace.one_indexed().row_start.0,
-                    _location.rbrace.one_indexed().col_start.0),
+                    _location.rbrace.row_start.0,
+                    _location.rbrace.col_start.0),
                 Position::new(
-                    _location.rbrace.one_indexed().row_start.0,
-                    _location.rbrace.one_indexed().col_start.0)
+                    _location.rbrace.row_start.0,
+                    _location.rbrace.col_start.0)
             ),
-            new_text: " }".to_string(),
+            new_text: " ".to_string(),
         }
     }
 

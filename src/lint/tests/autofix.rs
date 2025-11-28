@@ -48,17 +48,17 @@ pub fn test_02_simple_spacing_error_has_correct_fix() {
     let expected_fix = vec![
         TextEdit {
             range: Range::new(
-                Position::new(1, 30),
-                Position::new(1, 30)
+                Position::new(0, 30),
+                Position::new(0, 30)
             ),
-            new_text: "{ ".to_string(),
+            new_text: " ".to_string(),
         },
         TextEdit {
             range: Range::new(
-                Position::new(1, 40),
-                Position::new(1, 40)
+                Position::new(0, 39),
+                Position::new(0, 39)
             ),
-            new_text: " }".to_string(),
+            new_text: " ".to_string(),
         },
     ];
     for error in errors {
