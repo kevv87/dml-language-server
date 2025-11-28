@@ -5,7 +5,7 @@ pub mod client;
 #[cfg(test)]
 mod test;
 
-pub(crate) mod text_edit;
+mod text_surgery;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -182,12 +182,12 @@ fn apply_fixes_to_files(
             continue;
         }
         
-        if text_edit::has_conflicting_edits(&edits) {
+        if text_surgery::has_conflicting_edits(&edits) {
             record_skipped_fix(result, file, "conflicting edits detected");
             continue;
         }
         
-        apply_edits_to_file(file, &edits)?;
+        text_surgery::apply_edits_to_file(file, &edits)?;
         result.fixes_applied.insert(file.clone(), edits.len());
     }
     
@@ -261,10 +261,4 @@ fn record_skipped_fix(result: &mut AnalysisResult, file: &Path, reason: &str) {
         .push(warning);
 }
 
-fn apply_edits_to_file(file: &Path, edits: &[lsp_types::TextEdit]) -> Result<()> {
-    let content = std::fs::read_to_string(file)?;
-    let new_content = text_edit::apply_edits_to_content(&content, edits)?;
-    std::fs::write(file, new_content)?;
-    Ok(())
-}
 
