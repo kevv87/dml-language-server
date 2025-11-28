@@ -150,4 +150,38 @@ mod tests {
         assert!(fixed_content.contains(expected_fixed), 
             "File should be fixed. Got: {}", fixed_content);
     }
+
+    #[test]
+    fn test_dfa_analyze_files_with_dry_run() {
+        let source_code = "dml 1.4;\n\nmethod foo() {return 0;}\n";
+        
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let test_file = temp_dir.path().join("test.dml");
+        
+        fs::write(&test_file, source_code).expect("Failed to write test file");
+        
+        let dls_binary = Path::new("target/debug/dls");
+        
+        let request = AnalysisRequest {
+            files: vec![test_file.clone()],
+            workspaces: vec![temp_dir.path().to_path_buf()],
+            linting_enabled: true,
+            suppress_imports: true,
+            autofix: true,
+            dry_run: true,
+            ..Default::default()
+        };
+        
+        let result = analyze_files(dls_binary, request)
+            .expect("Analysis should succeed");
+        
+        assert_eq!(result.files_analyzed, 1);
+        assert!(!result.fixes_applied.is_empty(), 
+            "Expected to report fixes that would be applied");
+        
+        let content_after = fs::read_to_string(&test_file)
+            .expect("Should read file");
+        assert_eq!(content_after, source_code, 
+            "File should NOT be modified in dry-run mode");
+    }
 }

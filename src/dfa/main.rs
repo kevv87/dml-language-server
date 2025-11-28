@@ -34,6 +34,7 @@ struct Args {
     quiet: bool,
     autofix: bool,
     backup: bool,
+    dry_run: bool,
 }
 
 fn parse_args() -> Args {
@@ -94,6 +95,11 @@ fn parse_args() -> Args {
              .help("Create .bak backup files before applying autofixes")
              .action(ArgAction::SetTrue)
              .required(false))
+        .arg(Arg::new("dry-run")
+             .long("dry-run")
+             .help("Show what fixes would be applied without modifying files")
+             .action(ArgAction::SetTrue)
+             .required(false))
         .arg(arg!(<PATH> ... "DML files to analyze")
              .value_parser(clap::value_parser!(PathBuf)))
         .arg_required_else_help(false)
@@ -118,6 +124,7 @@ fn parse_args() -> Args {
             .cloned(),
         autofix: args.get_flag("autofix"),
         backup: args.get_flag("backup"),
+        dry_run: args.get_flag("dry-run"),
     }
 }
 
@@ -131,6 +138,10 @@ fn main_inner() -> Result<(), i32> {
         eprintln!("Warning: --backup flag is ignored without --autofix");
     }
 
+    if arg.dry_run && !arg.autofix {
+        eprintln!("Warning: --dry-run flag is ignored without --autofix");
+    }
+
     let request = dls::dfa::AnalysisRequest {
         files: arg.files.clone(),
         workspaces: arg.workspaces.clone(),
@@ -140,6 +151,7 @@ fn main_inner() -> Result<(), i32> {
         lint_cfg_path: arg.lint_cfg_path.clone(),
         autofix: arg.autofix,
         backup: arg.backup,
+        dry_run: arg.dry_run,
     };
 
     let result = dls::dfa::analyze_files(&arg.binary, request)

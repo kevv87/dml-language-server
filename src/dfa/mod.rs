@@ -24,6 +24,7 @@ pub struct AnalysisRequest {
     pub lint_cfg_path: Option<PathBuf>,
     pub autofix: bool,
     pub backup: bool,
+    pub dry_run: bool,
 }
 
 impl Default for AnalysisRequest {
@@ -37,6 +38,7 @@ impl Default for AnalysisRequest {
             lint_cfg_path: None,
             autofix: false,
             backup: false,
+            dry_run: false,
         }
     }
 }
@@ -66,7 +68,7 @@ pub fn analyze_files(
     let mut result = collect_diagnostics(&client, &request.files);
     
     if request.autofix {
-        apply_fixes_to_files(&mut client, &request.files, &mut result, request.backup)?;
+        apply_fixes_to_files(&mut client, &request.files, &mut result, request.backup, request.dry_run)?;
     }
     
     client.shutdown().ok();
@@ -165,6 +167,7 @@ fn apply_fixes_to_files(
     files: &[PathBuf],
     result: &mut AnalysisResult,
     backup: bool,
+    dry_run: bool,
 ) -> Result<()> {
     for file in files {
         let diagnostics_with_fixes = get_diagnostics_with_fixes(client, file);
@@ -187,6 +190,11 @@ fn apply_fixes_to_files(
         
         if text_surgery::has_conflicting_edits(&edits) {
             record_skipped_fix(result, file, "conflicting edits detected");
+            continue;
+        }
+        
+        if dry_run {
+            result.fixes_applied.insert(file.clone(), edits.len());
             continue;
         }
         
