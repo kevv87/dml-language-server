@@ -59,18 +59,12 @@ impl TextBuffer {
 
         Ok(line_start + char_offset)
     }
-
-    fn write_to_file(&self, path: &Path) -> Result<()> {
-        let mut file = std::fs::File::create(path)?;
-        self.rope.write_to(&mut file)?;
-        Ok(())
-    }
 }
 
-pub(crate) fn apply_edits_to_content(content: &str, path: &Path, edits: &[TextEdit]) -> Result<()> {
+pub(crate) fn apply_edits_to_content(content: &mut String, _path: &Path, edits: &[TextEdit]) -> Result<()> {
     let mut buffer = TextBuffer::from_str(content)?;
     buffer.apply_edits(edits)?;
-    buffer.write_to_file(path)?;
+    *content = buffer.rope.to_string();
     Ok(())
 }
 

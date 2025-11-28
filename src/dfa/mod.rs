@@ -23,6 +23,7 @@ pub struct AnalysisRequest {
     pub compile_info: Option<PathBuf>,
     pub lint_cfg_path: Option<PathBuf>,
     pub autofix: bool,
+    pub backup: bool,
 }
 
 impl Default for AnalysisRequest {
@@ -35,6 +36,7 @@ impl Default for AnalysisRequest {
             compile_info: None,
             lint_cfg_path: None,
             autofix: false,
+            backup: false,
         }
     }
 }
@@ -64,7 +66,7 @@ pub fn analyze_files(
     let mut result = collect_diagnostics(&client, &request.files);
     
     if request.autofix {
-        apply_fixes_to_files(&mut client, &request.files, &mut result)?;
+        apply_fixes_to_files(&mut client, &request.files, &mut result, request.backup)?;
     }
     
     client.shutdown().ok();
@@ -162,6 +164,7 @@ fn apply_fixes_to_files(
     client: &mut ClientInterface,
     files: &[PathBuf],
     result: &mut AnalysisResult,
+    backup: bool,
 ) -> Result<()> {
     for file in files {
         let diagnostics_with_fixes = get_diagnostics_with_fixes(client, file);
@@ -182,14 +185,19 @@ fn apply_fixes_to_files(
             continue;
         }
         
-        let file_content = std::fs::read_to_string(file)?;
-        
         if text_surgery::has_conflicting_edits(&edits) {
             record_skipped_fix(result, file, "conflicting edits detected");
             continue;
         }
         
-        text_surgery::apply_edits_to_content(&file_content, file, &edits)?;
+        if backup {
+            create_backup_file(file)?;
+        }
+        
+        let mut file_content = std::fs::read_to_string(file)?;
+        text_surgery::apply_edits_to_content(&mut file_content, file, &edits)?;
+        std::fs::write(file, file_content)?;
+        
         result.fixes_applied.insert(file.clone(), edits.len());
     }
     
@@ -261,6 +269,14 @@ fn record_skipped_fix(result: &mut AnalysisResult, file: &Path, reason: &str) {
         .entry(file.to_path_buf())
         .or_insert_with(Vec::new)
         .push(warning);
+}
+
+fn create_backup_file(file: &Path) -> Result<()> {
+    let backup_path = file.with_extension(
+        format!("{}.bak", file.extension().and_then(|s| s.to_str()).unwrap_or(""))
+    );
+    std::fs::copy(file, &backup_path)?;
+    Ok(())
 }
 
 

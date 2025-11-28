@@ -5,16 +5,10 @@
 //! Can be used for testing and obtaining understandable errors
 //! rather than lsp messages
 
-use dls::config::Config;
-
 use std::path::PathBuf;
-use std::convert::TryInto;
 use std::io::Write;
-use subprocess::ExitStatus;
 
 use clap::{command, arg, Arg, ArgAction};
-
-use dls::dfa::ClientInterface;
 
 use log::debug;
 
@@ -38,6 +32,8 @@ struct Args {
     lint_cfg_path: Option<PathBuf>,
     test: bool,
     quiet: bool,
+    autofix: bool,
+    backup: bool,
 }
 
 fn parse_args() -> Args {
@@ -88,6 +84,16 @@ fn parse_args() -> Args {
              .action(ArgAction::Set)
              .value_parser(clap::value_parser!(PathBuf))
              .required(false))
+        .arg(Arg::new("autofix")
+             .long("autofix")
+             .help("Automatically apply fixes for lint diagnostics")
+             .action(ArgAction::SetTrue)
+             .required(false))
+        .arg(Arg::new("backup")
+             .long("backup")
+             .help("Create .bak backup files before applying autofixes")
+             .action(ArgAction::SetTrue)
+             .required(false))
         .arg(arg!(<PATH> ... "DML files to analyze")
              .value_parser(clap::value_parser!(PathBuf)))
         .arg_required_else_help(false)
@@ -109,7 +115,9 @@ fn parse_args() -> Args {
         linting_enabled: args.get_one::<bool>("linting-enabled")
             .cloned(),
         lint_cfg_path: args.get_one::<PathBuf>("lint-cfg-path")
-            .cloned()
+            .cloned(),
+        autofix: args.get_flag("autofix"),
+        backup: args.get_flag("backup"),
     }
 }
 
@@ -119,64 +127,58 @@ fn main_inner() -> Result<(), i32> {
     println!("DML direct file analysis ({})", env!("CARGO_PKG_VERSION"));
     debug!("DFA args are: {:?}", arg);
 
-    let highest_folder = arg.files.iter().map(|p|p.as_path().parent().unwrap())
-        .reduce(|a, n|if a.starts_with(n) {a} else {n}).unwrap();
+    if arg.backup && !arg.autofix {
+        eprintln!("Warning: --backup flag is ignored without --autofix");
+    }
 
-    let mut workspace_rest = arg.workspaces.iter();
-    let first_workspace = workspace_rest.next();
-
-    let linting_enabled =  arg.linting_enabled.unwrap_or(true);
-
-    let root = match first_workspace {
-        Some(w) => w,
-        None => highest_folder,
-    };
-    let mut dlsclient = ClientInterface::start(&arg.binary, root, linting_enabled)
-        .map_err(|e|{
-            std::io::stdout().write_all(
-                format!("Failed to open client binary: {}\n",
-                        e).as_bytes())
-                .ok();
-            1})?;
-    dlsclient.add_workspaces(workspace_rest.cloned().collect()).or(Err(1))?;
-    let config = Config {
-        compile_info_path: arg.compile_info.clone(),
+    let request = dls::dfa::AnalysisRequest {
+        files: arg.files.clone(),
+        workspaces: arg.workspaces.clone(),
+        linting_enabled: arg.linting_enabled.unwrap_or(true),
         suppress_imports: arg.suppress_imports.unwrap_or(false),
-        linting_enabled,
+        compile_info: arg.compile_info.clone(),
         lint_cfg_path: arg.lint_cfg_path.clone(),
-        .. Default::default()
+        autofix: arg.autofix,
+        backup: arg.backup,
     };
-    dlsclient.set_config(config).ok();
 
-    for file in &arg.files {
-        dlsclient.open_file(file).or(Err(1))?;
+    let result = dls::dfa::analyze_files(&arg.binary, request)
+        .map_err(|e| {
+            std::io::stdout().write_all(
+                format!("Failed to analyze files: {}\n", e).as_bytes()
+            ).ok();
+            1
+        })?;
+
+    if !arg.quiet {
+        for (file, diagnostics) in &result.diagnostics {
+            println!("\n{}:", file.display());
+            for diag in diagnostics {
+                println!("  Line {}: {}", diag.line + 1, diag.message);
+            }
+        }
+        
+        if !result.fixes_applied.is_empty() {
+            println!("\n✅ Fixes applied:");
+            for (file, count) in &result.fixes_applied {
+                println!("  {}: {} fix(es)", file.display(), count);
+            }
+        }
+        
+        if !result.fixes_skipped.is_empty() {
+            println!("\n⚠️  Fixes skipped:");
+            for (file, warnings) in &result.fixes_skipped {
+                println!("  {}:", file.display());
+                for warning in warnings {
+                    println!("    {}", warning);
+                }
+            }
+        }
     }
-    let mut exit_code = Ok(());
-    if !arg.files.is_empty() {
 
-        if linting_enabled {
-            println!("Linter is enabled");
-        }
-
-        dlsclient.wait_for_analysis().map_err(
-            |e|match e {
-                ExitStatus::Exited(u) => u.try_into().unwrap(),
-                ExitStatus::Signaled(u) => u.into(),
-                ExitStatus::Other(i) => i,
-                ExitStatus::Undetermined => -1,
-            })?;
-
-        if !arg.quiet {
-            dlsclient.output_errors();
-        }
-        if arg.test && !dlsclient.no_errors() {
-            exit_code = Err(1);
-        }
+    if arg.test && result.has_errors {
+        Err(1)
+    } else {
+        Ok(())
     }
-
-    // Disregard this result, we dont _really_ care about shutting down
-    // the server here
-    dlsclient.shutdown().ok();
-
-    exit_code
 }
